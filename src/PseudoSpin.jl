@@ -12,10 +12,16 @@ end
 
 
 # Small FixedSizeArrays, e.g. 3-component vectors, outperform Julia Arrays.
-if Pkg.status("FixedSizeArrays") != nothing
+try
     using FixedSizeArrays
-elseif Pkg.status("StaticArrays") != nothing
-    using StaticArrays.FixedSizeArrays
+catch e
+    println("FixedSizeArrays not available. Trying StaticArrays.")
+    try
+        using StaticArrays.FixedSizeArrays
+    catch e
+        println("StaticArrays not available!")
+        throw(e)
+    end
 end
 typealias Vec3 Vec{3}
 typealias Point3 Point{3}
