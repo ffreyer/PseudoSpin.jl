@@ -31,10 +31,31 @@ import Base.push!, Base.var
 
 # Files used in simulation
 include("Cubic.jl")
+export sc, bcc, fcc, diamond
+
+
 include("RGraph.jl")
+export RGraph
+export findPaths!
+
+
 include("SGraph.jl")
+export SGraph, Basisfill
+export rand_spin, rand_spin!, get_positions
+
+
 include("model.jl")
+export init_edges!
+export totalEnergy, deltaEnergy
+export kernel, sweep
+
+
 include("simulation.jl")
+export Freezer, ConstantT, cool_to
+export BinnerA, var, tau
+export BinnerH, jackknife
+export measure!, simulate!
+
 
 #=
     Cubic.jl
