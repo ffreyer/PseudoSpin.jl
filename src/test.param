@@ -1,0 +1,13 @@
+neighbors	2
+do_paths	true
+path	test/
+folder	
+filename	T24
+L	8
+Js	-1.0	-0.4	0.3	0.12	-0.1	0.0	0.0	1.0
+T	0.624000
+TH	2000
+freeze_temp	2.0
+ME	500000
+h	0.010000	0.0	0.0
+N_switch	1500
