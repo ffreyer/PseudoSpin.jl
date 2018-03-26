@@ -1,12 +1,4 @@
-try
-    using FixedSizeArrays
-catch e
-    try
-        using StaticArrays.FixedSizeArrays
-    catch e
-        throw(e)
-    end
-end
+using GeometryTypes
 
 c = diamond("A", Point3f0(1.0, 1.0, 1.0))
 
