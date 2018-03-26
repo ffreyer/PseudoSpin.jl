@@ -1,5 +1,4 @@
-
-
+# As in R = R_0 + u e_x + v e_y + w e_z
 type Bravais
     pos::Point3f0
     x::Vec3f0
@@ -7,25 +6,34 @@ type Bravais
     z::Vec3f0
 end
 
-typealias Crystal Dict{String, Bravais}
+# typealias Crystal Dict{String, Bravais}
+
+# Crystal are combination of Bravais lattices
+const Crystal = Dict{String, Bravais}
 
 
 ################################################################################
 #### Constructors
 ################################################################################
 
-Cubic(key::String, B::Bravais) = Cubic(key => B)
 
-# """
-#     sc(atom::String)
-#     sc(atom::String, size::Integer)
-#     sc(atom::String, w::Integer, h::Integer, l::Integer)
-#
-# Constructor for a simple cubic cell. A cubic cell will always be constructed with
-# scaling factor w, h, l, which are 1 by default.
-# """
+"""
+    Crystal(atom, Bravais)
+
+Returns a new crystal with atoms positioned according to the given Bravais
+lattice.
+"""
+Crystal(atom::String, B::Bravais) = Crystal(atom => B)
+
 
 # Bravais concstructors
+"""
+    sc(, [pos::Point3f0, scaling::Float32])
+
+Generates a simple cubic Bravais lattice. Without arguments, the Bravais lattice
+will start at (0, 0, 0) and be scaled by 1. Arguments are evaluated based on
+their type.
+"""
 function sc(pos::Point3f0)
     Bravais(
         pos,
@@ -34,7 +42,6 @@ function sc(pos::Point3f0)
         Vec3f0(0, 0, 1)
     )
 end
-
 function sc(pos::Point3f0, scaling::Float32)
     Bravais(
         pos,
@@ -43,26 +50,31 @@ function sc(pos::Point3f0, scaling::Float32)
         scaling * Vec3f0(0, 0, 1)
     )
 end
-
 sc(scaling::Float32) = sc(Point3f0(0, 0, 0), scaling)
 sc() = sc(Point3f0(0, 0, 0))
 
-# Cubic constructors
-sc(atom::String, pos::Point3f0, scaling::Float32) = Cubic(atom, sc(pos, scaling))
-sc(atom::String, pos::Point3f0) = Cubic(atom, sc(pos))
-sc(atom::String, scaling::Float32) = Cubic(atom, sc(scaling))
-sc(atom::String) = Cubic(atom, sc())
+# Crystal constructors
+"""
+    sc(atom::String, [pos::Point3f0, scaling::Float32])
+
+Generates a Crystal with atoms positioned according to a simple cubic lattice.
+Without arguments, the Bravais lattice will start at (0, 0, 0) and be scaled by
+1. Arguments are evaluated based on their type.
+"""
+sc(atom::String, pos::Point3f0, scaling::Float32) = Crystal(atom, sc(pos, scaling))
+sc(atom::String, pos::Point3f0) = Crystal(atom, sc(pos))
+sc(atom::String, scaling::Float32) = Crystal(atom, sc(scaling))
+sc(atom::String) = Crystal(atom, sc())
 
 
-# """
-#     bcc(atom::String)
-#     bcc(atom::String, size::Integer)
-#     bcc(atom::String, w::Integer, h::Integer, l::Integer)
-#
-# Constructor for a body centric cubic cell. A cubic cell will always be
-# constructed with scaling factor w, h, l, which are 1 by default.
-# """
 # Bravais constructor
+"""
+    bcc(, [pos::Point3f0, scaling::Float32])
+
+Generates a body centered cubic Bravais lattice. Without arguments, the Bravais
+lattice will start at (0, 0, 0) and be scaled by 1. Arguments are evaluated
+based on their type.
+"""
 function bcc(pos::Point3f0)
     Bravais(
         pos,
@@ -71,7 +83,6 @@ function bcc(pos::Point3f0)
         Vec3f0(-0.5, 0.5, 0.5)
     )
 end
-
 function bcc(pos::Point3f0, scaling::Float32)
     Bravais(
         pos,
@@ -80,26 +91,31 @@ function bcc(pos::Point3f0, scaling::Float32)
         scaling * Vec3f0(-0.5, 0.5, 0.5)
     )
 end
-
 bcc(scaling::Float32) = bcc(Point3f0(0, 0, 0), scaling)
 bcc() = bcc(Point3f0(0, 0, 0))
 
-# Cubic constructors
-bcc(atom::String, pos::Point3f0, scaling::Float32) = Cubic(atom, bcc(pos, scaling))
-bcc(atom::String, pos::Point3f0) = Cubic(atom, bcc(pos))
-bcc(atom::String, scaling::Float32) = Cubic(atom, bcc(scaling))
-bcc(atom::String) = Cubic(atom, bcc())
+# Crystal constructors
+"""
+    bcc(atom::String, [pos::Point3f0, scaling::Float32])
+
+Generates a Crystal with atoms positioned according to a body centered cubic
+lattice. Without arguments, the Bravais lattice will start at (0, 0, 0) and be
+scaled by 1. Arguments are evaluated based on their type.
+"""
+bcc(atom::String, pos::Point3f0, scaling::Float32) = Crystal(atom, bcc(pos, scaling))
+bcc(atom::String, pos::Point3f0) = Crystal(atom, bcc(pos))
+bcc(atom::String, scaling::Float32) = Crystal(atom, bcc(scaling))
+bcc(atom::String) = Crystal(atom, bcc())
 
 
-# """
-#     fcc(atom::String)
-#     fcc(atom::String, size::Integer)
-#     fcc(atom::String, w::Integer, h::Integer, l::Integer)
-#
-# Constructor for a face centric cubic cell. A cubic cell will always be
-# constructed with scaling factor w, h, l, which are 1 by default.
-# """
 # Bravais constructor
+"""
+    fcc(, [pos::Point3f0, scaling::Float32])
+
+Generates a face centered cubic Bravais lattice. Without arguments, the Bravais
+lattice will start at (0, 0, 0) and be scaled by 1. Arguments are evaluated
+based on their type.
+"""
 function fcc(pos::Point3f0)
     Bravais(
         pos,
@@ -108,7 +124,6 @@ function fcc(pos::Point3f0)
         Vec3f0(0.0, 0.5, 0.5)
     )
 end
-
 function fcc(pos::Point3f0, scaling::Float32)
     Bravais(
         pos,
@@ -117,51 +132,56 @@ function fcc(pos::Point3f0, scaling::Float32)
         scaling * Vec3f0(0.0, 0.5, 0.5)
     )
 end
-
 fcc(scaling::Float32) = fcc(Point3f0(0, 0, 0), scaling)
 fcc() = fcc(Point3f0(0, 0, 0))
 
-# Cubic constructors
-fcc(atom::String, pos::Point3f0, scaling::Float32) = Cubic(atom, fcc(pos, scaling))
-fcc(atom::String, pos::Point3f0) = Cubic(atom, fcc(pos))
-fcc(atom::String, scaling::Float32) = Cubic(atom, fcc(scaling))
-fcc(atom::String) = Cubic(atom, fcc())
+# Crystal constructors
+"""
+    fcc(atom::String, [pos::Point3f0, scaling::Float32])
+
+Generates a Crystal with atoms positioned according to a face centered cubic
+lattice. Without arguments, the Bravais lattice will start at (0, 0, 0) and be
+scaled by 1. Arguments are evaluated based on their type.
+"""
+fcc(atom::String, pos::Point3f0, scaling::Float32) = Crystal(atom, fcc(pos, scaling))
+fcc(atom::String, pos::Point3f0) = Crystal(atom, fcc(pos))
+fcc(atom::String, scaling::Float32) = Crystal(atom, fcc(scaling))
+fcc(atom::String) = Crystal(atom, fcc())
 
 
-# """
-#     diamond(atom::String)
-#     diamond(atom::String, size::Integer)
-#     diamond(atom::String, w::Integer, h::Integer, l::Integer)
-#
-# Constructor for a diamond cubic cell. A cubic cell will always be constructed
-# with scaling factor w, h, l, which are 1 by default.
-# """
+"""
+    diamond(atom::String, [pos::Point3f0, scaling::Float32])
+
+Generates a Crystal with atoms positioned according to a diamond lattice.
+Without arguments, the Bravais lattice will start at (0, 0, 0) and be scaled by
+1. Arguments are evaluated based on their type.
+"""
 function diamond(atom::String, pos::Point3f0)
     #println(typeof(pos))
-    Cubic(
+    Crystal(
         atom*" 1" => fcc(pos),
         atom*" 2" => fcc(pos + Point3f0(0.25, 0.25, 0.25))
     )
 end
-
 function diamond(atom::String, pos::Point3f0, scaling::Float32)
     #println(typeof(pos))
-    Cubic(
+    Crystal(
         atom*" 1" => fcc(pos, scaling),
         atom*" 2" => fcc(pos + Point3f0(0.25, 0.25, 0.25), scaling)
     )
 end
-
 diamond(atom::String, scaling::Float32) = diamond(atom, Point3f0(0, 0, 0), scaling)
 diamond(atom::String) = diamond(atom, Point3f0(0, 0, 0))
+
 
 ################################################################################
 #### Utilities
 ################################################################################
 
+# convenient
 typealias Vec3i Vec{3, Integer}
 
-
+# computes R = R_0 + u e_x + v e_y + w e_z for a given Bravais lattice
 function *(uvw::Vec3i, B::Bravais)
     B.pos + uvw[1] * B.x + uvw[2] * B.y + uvw[3] * B.z
 end
@@ -194,19 +214,21 @@ function center_rec(B::Bravais, p::Point3f0, uvw::Vec3i)
     return uvw
 end
 
+
 ################################################################################
 #### Combining
 ################################################################################
 
-# Combines multiple Cubics
-function combine(cubics::Cubic...)
-    out = Cubic()
+
+# Combines multiple Crystals
+function combine(cubics::Crystal...)
+    out = Crystal()
 
     for c in cubics
         for key in keys(c)
             if key in keys(out)
                 throw(ErrorException(string(
-                    "Failed to combine Cubics for atom ", key, ". ",
+                    "Failed to combine Crystals for atom ", key, ". ",
                     "Use different names (X1, X2, ...) if the atoms do not form",
                     " a Bravais lattice or initialise one instead."
                 )))
