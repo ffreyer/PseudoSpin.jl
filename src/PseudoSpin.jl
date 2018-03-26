@@ -23,10 +23,10 @@ catch e
         throw(e)
     end
 end
-typealias Vec3 Vec{3}
-typealias Point3 Point{3}
-typealias Point3f0 Point{3, Float32}
-typealias Vec3f0 Vec{3, Float32}
+const Vec3 = Vec{3}
+const Point3 = Point{3}
+const Point3f0 = Point{3, Float32}
+const Vec3f0 = Vec{3, Float32}
 
 
 # I'm implementing new methods for these functions
