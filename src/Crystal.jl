@@ -179,7 +179,7 @@ diamond(atom::String) = diamond(atom, Point3f0(0, 0, 0))
 ################################################################################
 
 # convenient
-typealias Vec3i Vec{3, Integer}
+const Vec3i = Vec{3, Integer}
 
 # computes R = R_0 + u e_x + v e_y + w e_z for a given Bravais lattice
 function *(uvw::Vec3i, B::Bravais)
