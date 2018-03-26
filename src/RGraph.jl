@@ -3,7 +3,7 @@
 # import FixedSizeArrays.FixedArray
 # import Base.show
 
-#include("Cubic.jl")
+#include("Crystal.jl")
 
 # abstract AbstractNode
 # abstract AbstractEdge
@@ -13,7 +13,7 @@
 ### Types for Recursive Graphs
 ################################################################################
 
-A recursive Graph is a minimal Graph describing a Cubic cell through nodes
+A recursive Graph is a minimal Graph describing a Crystal cell through nodes
 (atoms) and their (first to nth) nearest neighbours.
 
 For all equivalent atoms in a cubic cell, one Node is created. Two atoms are the
@@ -55,11 +55,11 @@ end
 
 
 ################################################################################
-### Constructor for Cubic -> RGraph
+### Constructor for Crystal -> RGraph
 ################################################################################
 
 # """
-#     RGraph(c::Cubic, N::Integer)
+#     RGraph(c::Crystal, N::Integer)
 #
 # Creates a minimal Graph describing a cubic cell with N levels of neighbours.
 #
@@ -67,7 +67,7 @@ end
 # describes the direction to the next neighbour (up to order N) as well as the
 # node at that point.
 # """
-function RGraph(c::Cubic, N::Integer)
+function RGraph(c::Crystal, N::Integer)
 
     function dist(uvw::Vec3i, B_::Bravais, B::Bravais)
         v = uvw * B_ - B.pos
