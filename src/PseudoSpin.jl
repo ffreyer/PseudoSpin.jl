@@ -36,7 +36,7 @@ import Base.push!, Base.var
 
 
 # Files used in simulation
-include("Cubic.jl")
+include("Crystal.jl")
 export sc, bcc, fcc, diamond, center_around!
 
 
