@@ -1,3 +1,13 @@
+try
+    using FixedSizeArrays
+catch e
+    try
+        using StaticArrays.FixedSizeArrays
+    catch e
+        throw(e)
+    end
+end
+
 c = diamond("A", Point3f0(1.0, 1.0, 1.0))
 
 @testset "diamond constructor test" begin
