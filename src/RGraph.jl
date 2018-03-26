@@ -1,4 +1,4 @@
-#_String#import GeometryTypes.Point3f0
+#String#import GeometryTypes.Point3f0
 #import GeometryTypes.Vec3f0
 # import FixedSizeArrays.FixedArray
 # import Base.show
@@ -41,7 +41,7 @@ type PathREdge <: AbstractREdge
 end
 
 type RNode #<: AbstractNode
-    atom::_String
+    atom::String
     #ID::Int64
     bravais::Bravais
     edges::Vector{Vector{AbstractREdge}} #Abstract

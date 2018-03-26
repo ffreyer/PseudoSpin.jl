@@ -4,11 +4,11 @@ __precompile__(true)
 
 
 # Bleh
-if VERSION == v"0.4.5"
-    typealias _String ASCIIString
-else
-    typealias _String String
-end
+# if VERSION == v"0.4.5"
+#     typealias _String ASCIIString
+# else
+#     typealias _String String
+# end
 
 
 # Small FixedSizeArrays, e.g. 3-component vectors, outperform Julia Arrays.

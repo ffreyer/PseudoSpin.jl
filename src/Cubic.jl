@@ -1,14 +1,4 @@
-#=
-This file is kinda unnecessary.
 
-Here a lattice is defined through a cubic unit cell, given by type Cubic. Each
-Cubic consists out of one or more types "Bravais", which represent a cubic
-"Bravais" lattice. Each type "Bravais" is given by an anchor position (basis)
-"pos" and three vectors x, y, z generating lattice positions.
-
-A few basic cubic lattices are already defined, namely simple cubic "sc()", body
-centered cubic "bcc()", face centered cubic "fcc()" and "diamond()".
-=#
 
 type Bravais
     pos::Point3f0
@@ -17,19 +7,19 @@ type Bravais
     z::Vec3f0
 end
 
-typealias Cubic Dict{_String, Bravais}
+typealias Crystal Dict{String, Bravais}
 
 
 ################################################################################
 #### Constructors
 ################################################################################
 
-Cubic(key::_String, B::Bravais) = Cubic(key => B)
+Cubic(key::String, B::Bravais) = Cubic(key => B)
 
 # """
-#     sc(atom::_String)
-#     sc(atom::_String, size::Integer)
-#     sc(atom::_String, w::Integer, h::Integer, l::Integer)
+#     sc(atom::String)
+#     sc(atom::String, size::Integer)
+#     sc(atom::String, w::Integer, h::Integer, l::Integer)
 #
 # Constructor for a simple cubic cell. A cubic cell will always be constructed with
 # scaling factor w, h, l, which are 1 by default.
@@ -58,16 +48,16 @@ sc(scaling::Float32) = sc(Point3f0(0, 0, 0), scaling)
 sc() = sc(Point3f0(0, 0, 0))
 
 # Cubic constructors
-sc(atom::_String, pos::Point3f0, scaling::Float32) = Cubic(atom, sc(pos, scaling))
-sc(atom::_String, pos::Point3f0) = Cubic(atom, sc(pos))
-sc(atom::_String, scaling::Float32) = Cubic(atom, sc(scaling))
-sc(atom::_String) = Cubic(atom, sc())
+sc(atom::String, pos::Point3f0, scaling::Float32) = Cubic(atom, sc(pos, scaling))
+sc(atom::String, pos::Point3f0) = Cubic(atom, sc(pos))
+sc(atom::String, scaling::Float32) = Cubic(atom, sc(scaling))
+sc(atom::String) = Cubic(atom, sc())
 
 
 # """
-#     bcc(atom::_String)
-#     bcc(atom::_String, size::Integer)
-#     bcc(atom::_String, w::Integer, h::Integer, l::Integer)
+#     bcc(atom::String)
+#     bcc(atom::String, size::Integer)
+#     bcc(atom::String, w::Integer, h::Integer, l::Integer)
 #
 # Constructor for a body centric cubic cell. A cubic cell will always be
 # constructed with scaling factor w, h, l, which are 1 by default.
@@ -95,16 +85,16 @@ bcc(scaling::Float32) = bcc(Point3f0(0, 0, 0), scaling)
 bcc() = bcc(Point3f0(0, 0, 0))
 
 # Cubic constructors
-bcc(atom::_String, pos::Point3f0, scaling::Float32) = Cubic(atom, bcc(pos, scaling))
-bcc(atom::_String, pos::Point3f0) = Cubic(atom, bcc(pos))
-bcc(atom::_String, scaling::Float32) = Cubic(atom, bcc(scaling))
-bcc(atom::_String) = Cubic(atom, bcc())
+bcc(atom::String, pos::Point3f0, scaling::Float32) = Cubic(atom, bcc(pos, scaling))
+bcc(atom::String, pos::Point3f0) = Cubic(atom, bcc(pos))
+bcc(atom::String, scaling::Float32) = Cubic(atom, bcc(scaling))
+bcc(atom::String) = Cubic(atom, bcc())
 
 
 # """
-#     fcc(atom::_String)
-#     fcc(atom::_String, size::Integer)
-#     fcc(atom::_String, w::Integer, h::Integer, l::Integer)
+#     fcc(atom::String)
+#     fcc(atom::String, size::Integer)
+#     fcc(atom::String, w::Integer, h::Integer, l::Integer)
 #
 # Constructor for a face centric cubic cell. A cubic cell will always be
 # constructed with scaling factor w, h, l, which are 1 by default.
@@ -132,21 +122,21 @@ fcc(scaling::Float32) = fcc(Point3f0(0, 0, 0), scaling)
 fcc() = fcc(Point3f0(0, 0, 0))
 
 # Cubic constructors
-fcc(atom::_String, pos::Point3f0, scaling::Float32) = Cubic(atom, fcc(pos, scaling))
-fcc(atom::_String, pos::Point3f0) = Cubic(atom, fcc(pos))
-fcc(atom::_String, scaling::Float32) = Cubic(atom, fcc(scaling))
-fcc(atom::_String) = Cubic(atom, fcc())
+fcc(atom::String, pos::Point3f0, scaling::Float32) = Cubic(atom, fcc(pos, scaling))
+fcc(atom::String, pos::Point3f0) = Cubic(atom, fcc(pos))
+fcc(atom::String, scaling::Float32) = Cubic(atom, fcc(scaling))
+fcc(atom::String) = Cubic(atom, fcc())
 
 
 # """
-#     diamond(atom::_String)
-#     diamond(atom::_String, size::Integer)
-#     diamond(atom::_String, w::Integer, h::Integer, l::Integer)
+#     diamond(atom::String)
+#     diamond(atom::String, size::Integer)
+#     diamond(atom::String, w::Integer, h::Integer, l::Integer)
 #
 # Constructor for a diamond cubic cell. A cubic cell will always be constructed
 # with scaling factor w, h, l, which are 1 by default.
 # """
-function diamond(atom::_String, pos::Point3f0)
+function diamond(atom::String, pos::Point3f0)
     #println(typeof(pos))
     Cubic(
         atom*" 1" => fcc(pos),
@@ -154,7 +144,7 @@ function diamond(atom::_String, pos::Point3f0)
     )
 end
 
-function diamond(atom::_String, pos::Point3f0, scaling::Float32)
+function diamond(atom::String, pos::Point3f0, scaling::Float32)
     #println(typeof(pos))
     Cubic(
         atom*" 1" => fcc(pos, scaling),
@@ -162,8 +152,8 @@ function diamond(atom::_String, pos::Point3f0, scaling::Float32)
     )
 end
 
-diamond(atom::_String, scaling::Float32) = diamond(atom, Point3f0(0, 0, 0), scaling)
-diamond(atom::_String) = diamond(atom, Point3f0(0, 0, 0))
+diamond(atom::String, scaling::Float32) = diamond(atom, Point3f0(0, 0, 0), scaling)
+diamond(atom::String) = diamond(atom, Point3f0(0, 0, 0))
 
 ################################################################################
 #### Utilities
