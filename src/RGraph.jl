@@ -1,13 +1,3 @@
-#String#import GeometryTypes.Point3f0
-#import GeometryTypes.Vec3f0
-# import FixedSizeArrays.FixedArray
-# import Base.show
-
-#include("Crystal.jl")
-
-# abstract AbstractNode
-# abstract AbstractEdge
-
 #=
 ################################################################################
 ### Types for Recursive Graphs
@@ -25,10 +15,9 @@ vector. The edge may point to the same node it originates from. The distance of
 and edge is given in Node, as multiple edges of same length a grouped there.
 =#
 
-abstract AbstractREdge
+abstract type AbstractREdge end
 
 type SimpleREdge <: AbstractREdge
-    #dist::AbstractFloat
     dir::Vec3i
     from::Integer # AbstractNode
     to::Integer   # AbstractNode
@@ -42,7 +31,6 @@ end
 
 type RNode #<: AbstractNode
     atom::String
-    #ID::Int64
     bravais::Bravais
     edges::Vector{Vector{AbstractREdge}} #Abstract
     distances::Vector{AbstractFloat}
@@ -58,15 +46,15 @@ end
 ### Constructor for Crystal -> RGraph
 ################################################################################
 
-# """
-#     RGraph(c::Crystal, N::Integer)
-#
-# Creates a minimal Graph describing a cubic cell with N levels of neighbours.
-#
-# Each Node in the resulting Graph represents a Bravais lattice. Each Edge
-# describes the direction to the next neighbour (up to order N) as well as the
-# node at that point.
-# """
+"""
+    RGraph(c::Crystal, N::Integer)
+
+Creates a minimal Graph describing a cubic cell with N levels of neighbours.
+
+Each Node in the resulting Graph represents a Bravais lattice. Each Edge
+describes the direction to the next neighbour (up to order N) as well as the
+node at that point.
+"""
 function RGraph(c::Crystal, N::Integer)
 
     function dist(uvw::Vec3i, B_::Bravais, B::Bravais)
@@ -74,7 +62,13 @@ function RGraph(c::Crystal, N::Integer)
         dot(v, v)
     end
 
-    nodes = [RNode(key, c[key], [AbstractREdge[] for _ in 1:N], Float64[]) for key in keys(c)]
+    nodes = [
+        RNode(
+            key,
+            c[key],
+            [AbstractREdge[] for _ in 1:N], Float64[]
+        ) for key in keys(c)
+    ]
     edges = SimpleREdge[]
 
     Bs = collect(values(c))
@@ -144,7 +138,12 @@ function RGraph(c::Crystal, N::Integer)
 end
 
 
-function findPaths!(rgraph::RGraph)
+"""
+    generatePaths!(RGraph)
+
+Adds edges for the 4-spin term to an existing RGraph.
+"""
+function generatePaths!(rgraph::RGraph)
     for i1 in eachindex(rgraph.nodes)       # for each node n1
         paths = PathREdge[]                 # n1 is at Vec3i(0, 0, 0) per definition
         for e1 in rgraph.nodes[i1].edges[1]     # each edge n1 -> n2
@@ -173,8 +172,7 @@ function findPaths!(rgraph::RGraph)
             end
         end
         push!(rgraph.nodes[i1].edges, paths)
-        # push!(rgraph.nodes[i1].distances, 0.)         # there isn't any reasonable distance to put here, maybe phase this out?
-        append!(rgraph.edges, paths)                    # how about using distances to seperate these edges from the normal ones?
+        append!(rgraph.edges, paths)
     end
 
     nothing
