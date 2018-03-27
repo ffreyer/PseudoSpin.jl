@@ -10,6 +10,8 @@ const Point3f0 = ps.Point3f0
 const Point3 = ps.Point3
 include("Crystal.jl")
 
+include("RGraph.jl")
+
 # @test begin
 #     # ...
 #     true
