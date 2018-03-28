@@ -1,22 +1,6 @@
 r = RGraph(diamond("A"), 2)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 @testset "RGraph creation (Diamond)" begin
     @test length(r.nodes) == 2
     @test length(r.edges) == 32
@@ -90,3 +74,10 @@ r = RGraph(diamond("A"), 2)
         @test edges[2][12].dir == Vec3i(1, 0, 0)
     end
 end
+
+# Might as well test it in SGraph
+# generatePaths!(r)
+#
+# @testset "generatePaths! test" begin
+#
+# end
