@@ -85,7 +85,7 @@ end
 
 
 # calculates new values to be allocated as scalar product on Edge e
-function scalar_prod(e::Edge1, i::Int64, new_spin::Point3{Float64},
+function scalar_prod(e::SEdge1, i::Int64, new_spin::Point3{Float64},
         spins::Vector{Point3{Float64}})
 
     j = i == e.n1 ? e.n2 : e.n1
