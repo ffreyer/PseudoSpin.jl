@@ -25,9 +25,9 @@ end
 
 
 immutable SNode
-    first::Vector{Edge1}
+    first::Vector{SEdge1}
     second::Vector{Int64}
-    paths::Vector{Vector{Edge1}}        # includes all additonal edges in paths containing neighbours[1][j]
+    paths::Vector{Vector{SEdge1}}        # includes all additonal edges in paths containing neighbours[1][j]
 end
 
 
@@ -38,9 +38,9 @@ type SGraph
 
     nodes::Vector{SNode}
 
-    first::Vector{Edge1}
-    second::Vector{Edge2}
-    paths::Vector{Vector{Edge1}} # [continues edges[1][1], edges[1][2], ...]
+    first::Vector{SEdge1}
+    second::Vector{SEdge2}
+    paths::Vector{Vector{SEdge1}} # [continues edges[1][1], edges[1][2], ...]
 end
 
 
@@ -113,7 +113,7 @@ function connect_nodes!(
         nodes::Vector{SNode},
         first::Vector{SEdge1},
         second::Vector{SEdge2},
-        paths::Vector{Vector{Edge1}},
+        paths::Vector{Vector{SEdge1}},
         IDs::Vector{Tuple{Vec3i, Int64}},
         flat_index::Function
     )
@@ -130,7 +130,7 @@ function connect_nodes!(
 
             if l != 0
                 if lvl == 1
-                    e = Edge1(-1., -1., i, l)
+                    e = SEdge1(-1., -1., i, l)
                     k = findfirst(first, e)
                     if k != 0
                         push!(nodes[i].first, first[k])
@@ -139,7 +139,7 @@ function connect_nodes!(
                         push!(first, e)
                     end
                 elseif lvl == 2
-                    e = Edge2(i, l)
+                    e = SEdge2(i, l)
                     k = findfirst(second, e)
                     if k != 0
                         push!(nodes[i].second, l)
@@ -164,7 +164,7 @@ function connect_nodes!(
 
                 if l != 0
                     if lvl == 1
-                        e = Edge1(-1., -1., i, l)
+                        e = SEdge1(-1., -1., i, l)
                         k = findfirst(first, e)
                         if k != 0
                             push!(nodes[i].first, first[k])
@@ -173,7 +173,7 @@ function connect_nodes!(
                             push!(first, e)
                         end
                     elseif lvl == 2
-                        e = Edge2(i, l)
+                        e = SEdge2(i, l)
                         k = findfirst(second, e)
                         if k != 0
                             push!(nodes[i].second, l)
@@ -191,7 +191,7 @@ function connect_nodes!(
     end
 
     # Array with a spot for each lvl 1 edge
-    append!(paths, [Edge1[] for _ in first])
+    append!(paths, [SEdge1[] for _ in first])
 
     # if paths exist
     if length(rgraph.nodes[1].edges) > length(rgraph.nodes[1].distances) # 3
@@ -217,7 +217,7 @@ function connect_nodes!(
                 ni3 = flat_index(IDs[e.n1][1] + rp.dirs[2], rp.tos[2])  # TODO: check if not 0 (for open bounds)
                 ni4 = flat_index(IDs[e.n1][1] + rp.dirs[3], rp.tos[3])  # TODO: check if not 0 (for open bounds)
                 if (ni3 == 0) || (ni4 == 0); continue; end
-                ei2 = findfirst(first, Edge1(-1., -1, ni3, ni4))
+                ei2 = findfirst(first, SEdge1(-1., -1, ni3, ni4))
 
                 # save in nodes
                 push!(n1.paths[nei1], first[ei2])
@@ -239,7 +239,7 @@ function connect_nodes!(
                 ni3 = flat_index(IDs[e.n2][1] + rp.dirs[2], rp.tos[2])  # TODO: check if not 0 (for open bounds)
                 ni4 = flat_index(IDs[e.n2][1] + rp.dirs[3], rp.tos[3])  # TODO: check if not 0 (for open bounds)
                 if (ni3 == 0) || (ni4 == 0); continue; end
-                ei2 = findfirst(first, Edge1(-1., -1., ni3, ni4))
+                ei2 = findfirst(first, SEdge1(-1., -1., ni3, ni4))
 
                 # save in nodes
                 push!(n1.paths[nei1], first[ei2])
@@ -343,8 +343,8 @@ function Basisfill(rgraph::RGraph, N::Integer; border::Symbol=:periodic)
     # to IDs and the indice functions
     nodes = [
         SNode(
-            Edge1[], Int64[],
-            [Edge1[] for _ in 1:4]
+            SEdge1[], Int64[],
+            [SEdge1[] for _ in 1:4]
         ) for __ in 1:N^3, _ in 1:length(rgraph.nodes)
     ][:]
 
@@ -358,9 +358,9 @@ function Basisfill(rgraph::RGraph, N::Integer; border::Symbol=:periodic)
     ]       # the last loop runs through first
 
     # populate neighbours
-    first = Edge1[] # [SEdge[], SEdge[]]
-    second = Edge2[]  # [SEdge[], SEdge[]]
-    paths = Vector{Edge1}[]
+    first = SEdge1[] # [SEdge[], SEdge[]]
+    second = SEdge2[]  # [SEdge[], SEdge[]]
+    paths = Vector{SEdge1}[]
     connect_nodes!(rgraph, nodes, first, second, paths, IDs, flat_index)
 
 
