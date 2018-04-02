@@ -3,24 +3,6 @@
 #### New Simulation stack
 ################################################################################
 
-# change: N/2 -> var N_switch
-# Freezer is a Generator for slow cooling iterators. For the first half the
-# temperatures follow an exponential decay from T_max to T with sin-noise. In
-# the second half the iterator yields T. Usuage:
-
-# Freezer(Number_of_points, T_max;
-#       N_exp_points = number of points to sample exp from,
-#       exp_strength = result of exp that represents T_max (higher -> faster decay),
-#       N_sin_points = number of sin-points used for a period. (more -> slower sin),
-#       sin_percentage = sin is multiplied with this factor)
-#
-# Freezer will yield a type which acts as a Generator (and later Iterator).
-
-# cool_to(Freezer, T)
-# will set up Freezer as an Iterator for final temperature T.
-# You can do:
-#   for T in cool_to(Freezer, T); ... end
-# to get your Temperatures
 
 type Freezer
     sin_values::Vector{Float64}
@@ -28,7 +10,6 @@ type Freezer
     exp_deltas::Vector{Float64}
 
     N::Int64
-    # N_half::Int64
     N_switch::Int64
     j_step::Float64
     T_max::Float64
@@ -40,23 +21,47 @@ type Freezer
 end
 
 # Constructor, with basic setup
-function Freezer(N::Int64, T_max::Float64;
-        N_switch::Int64=-1,
-        N_exp_points::Int64=10, exp_strength::Float64=100.,
-        N_sin_points::Int64=10_000, sin_percentage::Float64=0.2)
+"""
+    Freezer(N, T_max[;
+        N_switch,
+        N_exp_points,
+        exp_strength,
+        N_sin_points,
+        sin_percentage
+    ])
+
+A Freezer is an iterator which returns inverse temperatures oscilalting around an
+exponentially decaying function starting at some temperature T_max. The final
+temperature is given in cool_to(...). The iterator returns a total of N
+temperatures, but is constant after N_switch temperatures.
+
+To avoid calling sin() and exp() often, a set number of sin and exp points are
+calculated in advance. The number of points can be adjusted through N_exp_points
+and N_sin_points. The rate of the exponential decay can be adjusted through
+exp_strength (higher = faster decay). The strength of the oscillation depends on
+sin_percentage, while the rate of the oscillation is controlled by N_sin_points.
+(One period over N_sin_points)
+"""
+function Freezer(
+        N::Int64,
+        T_max::Float64;
+        N_switch::Int64 = -1,
+        N_exp_points::Int64 = 10,
+        exp_strength::Float64 = 100.,
+        N_sin_points::Int64 = 10_000,
+        sin_percentage::Float64 = 0.2
+    )
 
     (N_switch == -1) && (N_switch = div(N, 2))
     sin_values = 1. - sin_percentage .* sin(linspace(0., 2*pi, N_sin_points))
     exp_values = (exp(linspace(log(exp_strength + 1), 0., N_exp_points)) - 1.) ./ exp_strength
     exp_deltas = exp_values[2:end] - exp_values[1:end-1]
-    # N_half = div(N, 2)
 
     Freezer(
         sin_values,
         exp_values,
         exp_deltas,
         N,
-        # N_half,
         N_switch,
         (N_exp_points - 1) / N_switch,
         T_max,
@@ -68,6 +73,17 @@ function Freezer(N::Int64, T_max::Float64;
 end
 
 # Sets up T as the final temperature
+"""
+    cool_to(freezer, T)
+
+Starts the Freezer with a final temperature T.
+
+Example:
+    f = Freezer(1_000_000, 1.0)
+    for beta in cool_to(f, 0.1)
+        ...
+    end
+"""
 function cool_to(F::Freezer, T::Float64)
     F.delta_T = F.T_max - T
     F.T = T
@@ -82,6 +98,7 @@ done(F::Freezer, i::Int64) = i >= F.N
 length(F::Freezer) = F.N
 eltype(::Freezer) = Float64
 
+# next temperature
 @inline function next(F::Freezer, i::Int64)
     if i < F.N_switch # F.N_half
         i += 1
@@ -129,8 +146,6 @@ length(F::ConstantT) = F.N
 # is one of these for each binning level. Since when two values should be
 # compressed, this is done immediately, so that only one value needs to be saved.
 # switch indicates whether value should be written to or averaging should happen.
-
-# TODO:     value -> Type T?
 type Compressor
     value::Float64
     switch::UInt8
@@ -158,18 +173,30 @@ type BinnerA
 end
 
 
-# Constructor
-# min_output_size is the minimum number of points used for the upper most level
+"""
+    BinnerA(min_output_size)
+
+Creates a new Binning Analysis which keeps min_output_size values around after
+binning. Returns a Binning Analysis object. Use push! to add values.
+"""
 function BinnerA(min_output_size::Integer)
     BinnerA(
         Compressor[],
         Array(Float64, 2 * min_output_size),
-        UInt32(1), UInt32(2 * min_output_size),
-        Int64[], Float64[], Float64[]
+        UInt32(1),
+        UInt32(2 * min_output_size),
+        Int64[],
+        Float64[],
+        Float64[]
     )
 end
 
 
+"""
+    push!(BinningAnalysis, value)
+
+Pushes a new value into the Binning Analysis.
+"""
 function push!(B::BinnerA, value::Float64)
     # first set of values
     if isempty(B.compressors)
@@ -218,12 +245,11 @@ function push!(B::BinnerA, value::Float64)
         end
     end
 
-    println("How did you get here? user push!")
     return nothing
 end
 
 
-# recursion
+# recursion, back-end function
 function push!(B::BinnerA, lvl::Int64, value::Float64)
     C = B.compressors[lvl]
 
@@ -265,6 +291,11 @@ end
 # This is actually Var(x)/N
 # This definition is more practical for the binning analysis and error
 # calculation since we need the standard error sqrt(Var(x) / N)
+"""
+    var(BinningAnalysis, lvl)
+
+Calculates the **variance/N** of a given level in the Binning Analysis.
+"""
 function var(B::BinnerA, lvl::Int64)
     # The upper most lvl needs to be calculated explicitly
     if lvl < length(B.count)
@@ -275,6 +306,11 @@ function var(B::BinnerA, lvl::Int64)
 end
 
 
+"""
+    tau(BinningAnalysis, lvl)
+
+Calculates tau...
+"""
 function tau(B::BinnerA, lvl::Int64)
     var_0 = var(B, 0)
     var_l = var(B, lvl)
@@ -288,15 +324,26 @@ end
 
 # This is kept very simplistic. The width of bins is fixed and bins are created
 # when needed. bin width should be somewhere in the range of 0.001 - 0.0001.
+
 type BinnerH
     data::Dict{Int64, Int64}
     bin_width::Float64
 
+    """
+        BinnerH(bin_width)
+
+    Creates a new Histogram Binner with a given bin width.
+    """
     BinnerH(bin_width::Float64) = new(Dict{Int64, UInt32}(), bin_width)
 end
 
+"""
+    push!(HistogramBinner, x)
+
+Pushes x into the Histogram Binner.
+"""
 function push!(B::BinnerH, x::Float64)
-    id = floor(Int64, x / B.bin_width)#Int64(div(x, B.bin_width))
+    id = floor(Int64, x / B.bin_width)
 
     if haskey(B.data, id)
         B.data[id] += 1
@@ -312,6 +359,17 @@ end
 
 
 # This requires the full xs arrays :(
+"""
+    jackknife(function, args...)
+
+Performs a jackknife analysis given a function and its arguments. Returns the
+mean and standard error.
+
+Example:
+    xs = rand(1000)
+    ys = rand(1000)
+    value, error = jackknife((x, y) -> x*y, xs, ys)
+"""
 function jackknife(f::Function, args...)
     N = length(args[1])
     x0s = map(sum, args) # (xs, ...) -> (sum xs, ...)
@@ -356,11 +414,27 @@ data
 =#
 
 # file writers
-function write_header!(file::IOStream,
-        N_points::Int64, TH_sweeps::Int64, TH_Temp::Float64,
-        ME_sweeps::Int64, sys_size::Int64, N_nodes::Int64, K_edges::Int64,
+"""
+    write_header!(
+        file, N_points, TH_sweeps, TH_Temp, ME_sweeps, sys_size,
+        N_nodes, K_edges, Js, h, T
+    )
+
+Writes the file header.
+"""
+function write_header!(
+        file::IOStream,
+        N_points::Int64,
+        TH_sweeps::Int64,
+        TH_Temp::Float64,
+        ME_sweeps::Int64,
+        sys_size::Int64,
+        N_nodes::Int64,
+        K_edges::Int64,
         Js::Union{Vector{Float64}, Vector{Tuple{Float64, Float64}}},
-        h::Point3{Float64}, T::Float64)
+        h::Point3{Float64},
+        T::Float64
+    )
 
     write(file, "V02")
     write(file, N_points)
@@ -385,6 +459,12 @@ function write_header!(file::IOStream,
 end
 
 
+"""
+    write_BA!(file, BinningAnalysis, ID)
+
+Adds data from a Binning Analysis to the file. The section will start with *BA*
+and the ID.
+"""
 function write_BA!(file::IOStream, B::BinnerA, ID::String)
     #### tag
     @assert length(ID) == 5
@@ -422,6 +502,12 @@ function write_BA!(file::IOStream, B::BinnerA, ID::String)
 end
 
 
+"""
+    write_JK!(file, mean, var, ID)
+
+Adds data from a jackknife analysis to the file. The section will start with
+*JK* and the ID.
+"""
 function write_JK!(file::IOStream, mean::Float64, var::Float64, ID::String)
 
     # tag
@@ -437,6 +523,12 @@ function write_JK!(file::IOStream, mean::Float64, var::Float64, ID::String)
 end
 
 
+"""
+    write_HB!(file, HistogramBinner, ID)
+
+Adds data from a Histogram Binner to the file. The section will start with
+*HB* and the ID.
+"""
 function write_HB!(file::IOStream, B::BinnerH, ID::String)
     # tag
     @assert length(ID) == 5
@@ -457,6 +549,12 @@ function write_HB!(file::IOStream, B::BinnerH, ID::String)
 end
 
 
+"""
+    write_SC!(file, spins, ID)
+
+Adds a spin configuration to the file. The section will start with *SC* and the
+ID.
+"""
 function write_SC!(file::IOStream, spins::Vector{Point3{Float64}}, ID::String)
     # tag
     @assert length(ID) == 5
@@ -476,6 +574,7 @@ function write_SC!(file::IOStream, spins::Vector{Point3{Float64}}, ID::String)
     nothing
 end
 
+# TODO
 function get_dimer_parameter(sgraph::SGraph, spins::Vector{Point3{Float64}})
     return map(eachindex(sgraph.nodes)) do i
         mapreduce(e -> e.xy + e.z, +, sgraph.nodes[i].first)
@@ -483,9 +582,22 @@ function get_dimer_parameter(sgraph::SGraph, spins::Vector{Point3{Float64}})
 end
 
 
-function measure!(sgraph::SGraph, spins::Vector{Point3{Float64}}, beta::Float64,
+"""
+    measure!(sgraph, spins, beta, Js, file, N_sweeps, h)
+
+Starts a measurement (over N_sweeps) on an existing lattice (sgraph) with a
+given set of spins and the simulation parameters Js and h. The results will be
+saved to file. (Note: This does not append a file header)
+"""
+function measure!(
+        sgraph::SGraph,
+        spins::Vector{Point3{Float64}},
+        beta::Float64,
         Js::Union{Vector{Float64}, Vector{Tuple{Float64, Float64}}},
-        file::IOStream, N_sweeps::Int64=1000, h::Point3{Float64}=Point3(0.))
+        file::IOStream,
+        N_sweeps::Int64=1000,
+        h::Point3{Float64}=Point3(0.)
+    )
 
     zeroT = beta < 0.0
 
@@ -657,19 +769,33 @@ end
 
 
 # Single Temperature simulate
-function simulate!(sgraph::SGraph, spins::Vector{Point3{Float64}}, sys_size::Int64,
-        path::String, filename::String,
-        T::Float64, Js::Union{Vector{Float64}, Vector{Tuple{Float64, Float64}}},
-        TH_method::Freezer, ME_sweeps::Int64, h::Point3{Float64}=Point3(0.))
+"""
+    simulate!(sgraph, spins, sys_size, path, filename, T, Js, TH_method, ME_sweeps, h)
+
+Starts a simulation on a given lattice (sgraph) with given spins, including
+thermalization and measurement sweeps. The results will be saved to a file
+created in path.
+"""
+function simulate!(
+        sgraph::SGraph,
+        spins::Vector{Point3{Float64}},
+        sys_size::Int64,
+        path::String,
+        filename::String,
+        T::Float64,
+        Js::Union{Vector{Float64}, Vector{Tuple{Float64, Float64}}},
+        TH_method::Freezer,
+        ME_sweeps::Int64,
+        h::Point3{Float64}=Point3(0.)
+    )
 
 
-    # Fool-proof file creation that was actually not fool-proof
+    # Fool-proof? file creation that was actually not fool-proof
     if isdir(path)
         println(
             path, " already exists",
             ". New files will be inserted."
         )
-        #folder_name = folder_name * string(time())
     else
         mkdir(path)
     end
@@ -685,9 +811,7 @@ function simulate!(sgraph::SGraph, spins::Vector{Point3{Float64}}, sys_size::Int
         Int64(sgraph.N_nodes), sgraph.K_edges, Js, h, T
     )
 
-    # tic()
     # Thermalization
-    # spins = rand_spin(sgraph.N_nodes)
     init_edges!(sgraph, spins)
 
     if T > 0.0
@@ -708,47 +832,30 @@ function simulate!(sgraph::SGraph, spins::Vector{Point3{Float64}}, sys_size::Int
         ME_sweeps += TH_sweeps
         beta = -1.0
     end
+
     # Measurement
-    # Es = Array(Float64, ME_sweeps)
-    # Ms, Ms2, Ms_abs, Ms_abs2 =
     measure!(sgraph, spins, beta, Js, file, ME_sweeps, h)
-
-    # # saving
-    # dump_Floats!(file, Es)
-    # map(x -> write(file, x), Ms)
-    # map(x -> write(file, x), Ms_abs)
-    # dump_Points!(file, spins)
-    # map(x -> write(file, x), Ms2)
-    # map(x -> write(file, x), Ms_abs2)
-
     close(file)
-    # println("T = ", T, " done. Time: ", toq())
 
     nothing
 end
 
 
 
-function simulate!(sgraph::SGraph, spins::Vector{Point3{Float64}}, sys_size::Int64,
-        path::String, filename::String,
-        Ts::Vector{Float64},
+function simulate!(
+        sgraph::SGraph,
+        spins::Vector{Point3{Float64}},
+        sys_size::Int64,
+        path::String,
+        filename::String,
+        Ts::Vector{Float64},    # <- multiple
         Js::Union{Vector{Float64}, Vector{Tuple{Float64, Float64}}},
-        TH_method::Union{ConstantT, Freezer}, ME_sweeps::Int64,
-        h::Point3{Float64}=Point3(0.)) #,
-        #do_parallel::Bool=true)
+        TH_method::Union{ConstantT, Freezer},
+        ME_sweeps::Int64,
+        h::Point3{Float64}=Point3(0.)
+    )
 
 
-    # if do_parallel
-    #     pmap(
-    #         (i, T) -> simulate!(
-    #             deepcopy(sgraph), sys_size,
-    #             path * folder_name * "/", filename * string(i),
-    #             T, deepcopy(Js),
-    #             deepcopy(TH_method), ME_sweeps
-    #         ),
-    #         enumerate(Ts)
-    #     )
-    # else
     for (i, T) in enumerate(Ts)
         simulate!(
             sgraph, sys_size,
@@ -757,7 +864,6 @@ function simulate!(sgraph::SGraph, spins::Vector{Point3{Float64}}, sys_size::Int
             TH_method, ME_sweeps, h
         )
     end
-    # end
 
     nothing
 end
