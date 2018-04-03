@@ -14,6 +14,8 @@ include("RGraph.jl")
 
 @test abs.(reduce(+, 1_000_000) / 1_000_000) .<= Point3(0.01, 0.01, 0.01)
 
+include("simulation.jl")
+
 
 
 # @test begin
