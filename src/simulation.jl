@@ -575,11 +575,12 @@ function write_SC!(file::IOStream, spins::Vector{Point3{Float64}}, ID::String)
 end
 
 # TODO
-function get_dimer_parameter(sgraph::SGraph, spins::Vector{Point3{Float64}})
-    return map(eachindex(sgraph.nodes)) do i
-        mapreduce(e -> e.xy + e.z, +, sgraph.nodes[i].first)
-    end
-end
+# mapreduce(n -> mapreduce(e -> e.xy + e.z, +, n.first), +, sgraph.nodes)
+# function get_dimer_parameter(sgraph::SGraph, spins::Vector{Point3{Float64}})
+#     return map(eachindex(sgraph.nodes)) do i
+#         mapreduce(e -> e.xy + e.z, +, sgraph.nodes[i].first)
+#     end
+# end
 
 
 """
@@ -600,6 +601,7 @@ function measure!(
     )
 
     zeroT = beta < 0.0
+    const invN = 1. / sgraph.N_nodes
 
     E_BA = BinnerA(200)
     Es = Array(Float64, N_sweeps)
@@ -616,7 +618,11 @@ function measure!(
     Mquad_BA = BinnerA(200)
     Moct_BA = BinnerA(200)
 
-    dimer = [BinnerA(200) for _ in eachindex(spins)]
+    # dimer = [BinnerA(200) for _ in eachindex(spins)]
+    Dimer_xy = BinnerA(200)
+    Dimer_xy_var = BinnerA(200)
+    Dimer_z = BinnerA(200)
+    Dimer_z_var = BinnerA(200)
 
     additional_observables = true
     Nhalf = div(sgraph.N_nodes, 2)
@@ -669,10 +675,10 @@ function measure!(
             E_tot = sweep(sgraph, spins, E_tot, Js, beta, h)
         end
         b2 = Base.gc_bytes()
-        @inbounds Es[i] = E_tot / sgraph.N_nodes
-        push!(E_BA, E_tot / sim.N_nodes)
+        @inbounds Es[i] = E_tot * invN
+        push!(E_BA, E_tot * invN)
 
-        S = sum(spins) / sgraph.N_nodes
+        S = sum(spins) * invN
         @inbounds push!(Mx_BA, S[1])
         @inbounds push!(My_BA, S[2])
         @inbounds push!(Mz_BA, S[3])
@@ -682,20 +688,34 @@ function measure!(
         @inbounds push!(M2xy_BA, M2xys[i])
         @inbounds push!(M2z_BA, abs(S[3]))
 
-        @inbounds temp = mapreduce(v -> Point3{Float64}(0., sqrt(v[1] * v[1] + v[2] * v[2]), abs(v[3])), +, spins) / sgraph.N_nodes
+        @inbounds temp = mapreduce(v -> Point3{Float64}(0., sqrt(v[1] * v[1] + v[2] * v[2]), abs(v[3])), +, spins) * invN
         @inbounds push!(Mquad_BA, temp[2])
         @inbounds push!(Moct_BA, temp[3])
 
-        @inbounds map(push!, dimer, get_dimer_parameter(sgraph, spins))
+        # @inbounds map(push!, dimer, get_dimer_parameter(sgraph, spins))
+
+        # 1/N ∑_sites ∑_{e ∈ NN} e.xy
+        Dxy = map(n -> mapreduce(e -> e.xy, +, n.first), sgraph.nodes)
+        Dxy_mean = sum(Dxy) * invN
+        Dxy_var = sum(Dxy.^2) * invN - Dxy_mean^2
+        Dz = map(n -> mapreduce(e -> e.z, +, n.first), sgraph.nodes)
+        Dz_mean = sum(Dz) * invN
+        Dz_var = sum(Dz.^2) * invN - Dz_mean^2
+
+        @inbounds push!(Dimer_xy, Dxy_mean)
+        @inbounds push!(Dimer_xy_var, Dxy_var)
+        @inbounds push!(Dimer_z, Dz_mean)
+        @inbounds push!(Dimer_z_var, Dz_var)
+
 
         if additional_observables
             _spins = map(t -> flip(t...), enumerate(spins))
-            S = sum(_spins) / sgraph.N_nodes
+            S = sum(_spins) * invN
             srMx += S[1]
             srMy += S[2]
             srMz += S[3]
 
-            vars = mapreduce(s -> (s - S).^2, +, _spins) / sgraph.N_nodes
+            vars = mapreduce(s -> (s - S).^2, +, _spins) * invN
             srdMx += vars[1]
             srdMy += vars[2]
             srdMz += vars[3]
@@ -703,12 +723,12 @@ function measure!(
             srM2xy += sqrt(S[1]^2 + S[2]^2)
             srdM2xy += sqrt(vars[1]^2 + vars[2]^2)
 
-            S = mapreduce(abs, +, _spins) / sgraph.N_nodes
+            S = mapreduce(abs, +, _spins) * invN
             srMxabs += S[1]
             srMyabs += S[2]
             srMzabs += S[3]
 
-            vars = mapreduce(s -> (abs(s) - S).^2, +, _spins) / sgraph.N_nodes
+            vars = mapreduce(s -> (abs(s) - S).^2, +, _spins) * invN
             srdMxabs += vars[1]
             srdMyabs += vars[2]
             srdMzabs += vars[3]
@@ -741,19 +761,23 @@ function measure!(
     write_BA!(file, M2z_BA,  "M2z  ")
     write_BA!(file, Mquad_BA, "Mquad")
     write_BA!(file, Moct_BA, "Moct ")
-    for i in eachindex(dimer)
-        write_BA!(file, dimer[i], rpad(string(i), 5))
-    end
+
+    write_BA!(file, Dimer_xy, "Dxy  ")
+    write_BA!(file, Dimer_xy_var, "DxyV ")
+    write_BA!(file, Dimer_z, "Dz   ")
+    write_BA!(file, Dimer_z_var, "DzV  ")
+    # for i in eachindex(dimer)
+    #     write_BA!(file, dimer[i], rpad(string(i), 5))
+    # end
 
     if additional_observables
-        K = 1 / N_sweeps
-        write_JK!(file, srMx * K, srdMx * K, "rMx  ")
-        write_JK!(file, srMy * K, srdMy * K, "rMy  ")
-        write_JK!(file, srMz * K, srdMz * K, "rMz  ")
-        write_JK!(file, srMxabs * K, srdMxabs * K, "rMxa ")
-        write_JK!(file, srMyabs * K, srdMyabs * K, "rMya ")
-        write_JK!(file, srMzabs * K, srdMzabs * K, "rMza ")
-        write_JK!(file, srM2xy * K, srdM2xy * K, "rMxy ")
+        write_JK!(file, srMx * K, srdMx * invN, "rMx  ")
+        write_JK!(file, srMy * K, srdMy * invN, "rMy  ")
+        write_JK!(file, srMz * K, srdMz * invN, "rMz  ")
+        write_JK!(file, srMxabs * K, srdMxabs * invN, "rMxa ")
+        write_JK!(file, srMyabs * K, srdMyabs * invN, "rMya ")
+        write_JK!(file, srMzabs * K, srdMzabs * invN, "rMza ")
+        write_JK!(file, srM2xy * K, srdM2xy * invN, "rMxy ")
     end
 
     write_JK!(file, cv, dcv, "cV   ")
