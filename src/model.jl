@@ -183,6 +183,20 @@ function deltaEnergy(
         h::Point3{Float64}=Point3(0.)       # external field
     )
 
+    # xys, zs: 4x 3 multiplication, 4 additions -> (12, 4) (used for NN, paths)
+
+    # NN: [12, 4] + (1, 4x 4) = (1, 16) + [12, 4]
+    # NNN: 12x (3, 3) + (0, 3) = (36, 39)
+    # paths: [12, 4] + 36x (0, 2) + 4x (1, 4) + (2, 0) = (6, 88) + [12, 4]
+    #                                       but [12, 4] is reused from NN
+    # field: (3, 6)
+    # Assuming multiplication is about 4 times as expensive as addition/subtraction
+    # scalar products: 52*
+    # NN: 20 [+ 52]*
+    # NNN: 183
+    # paths: 112 [+ 52]*
+    # field: 18
+
     # calculate energy difference
     dE = 0.
     temp = 0.
@@ -538,3 +552,45 @@ function sweep(
 
     E_tot
 end
+
+
+
+#=
+(SxSxSy+SxSySx+SySxSx-SySySy)
+# 4 * (4, 2) + 4 * 2 * 3 * (0, 4) + (1, 0) = (17, 104) -> 176
+# also 4 + 4*16 comparisons -> +68 -> 244
+temp = 0.
+for j in 1:4
+    si = n.first[j].n1 != i ? n.first[j].n1 : n.first[j].n2
+
+    # first part of the path (x - a)
+    # xx = delta_s[1] * spins[si][1]
+    # xy = delta_s[1] * spins[si][2]
+    # yx = delta_s[2] * spins[si][1]
+    # yy = delta_s[2] * spins[si][2]
+    xxyy = xys[j]
+    xyyx = delta_s[1] * spins[si][2] + delta_s[2] * spins[si][1]
+
+    x = 0.
+    y = 0.
+    # second part (b - x - a)
+    for k in 1:4
+        i == k && continue
+        sj = n.first[k].n1 != i ? n.first[k].n1 : n.first[k].n2
+        x += spins[sj][1]
+        y += spins[sj][2]
+    end
+
+    # second part (x - a - b)
+    for k in 1:4
+        si == k && continue
+        _n = sgraph.nodes[si] # <---------------- not available
+        sj = _n.first[k].n1 != i ? _n.first[k].n1 : _n.first[k].n2
+        x += spins[sj][1]
+        y += spins[sj][2]
+    end
+
+    temp += xxyy * y + xyyx * x     # xx*y + yy*y + xy*x + yx*x
+end
+temp *= Q
+=#
