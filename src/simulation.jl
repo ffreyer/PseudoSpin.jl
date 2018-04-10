@@ -433,10 +433,11 @@ function write_header!(
         K_edges::Int64,
         Js::Union{Vector{Float64}, Vector{Tuple{Float64, Float64}}},
         h::Point3{Float64},
-        T::Float64
+        T::Float64,
+        g::Float64
     )
 
-    write(file, "V02")
+    write(file, "V03")
     write(file, N_points)
     write(file, TH_sweeps)
     write(file, TH_Temp)
@@ -453,6 +454,7 @@ function write_header!(
         end
     end
     for _h in h; write(file, _h) end
+    write(file, g)
     write(file, T)
 
     nothing
@@ -597,10 +599,12 @@ function measure!(
         Js::Union{Vector{Float64}, Vector{Tuple{Float64, Float64}}},
         file::IOStream,
         N_sweeps::Int64=1000,
-        h::Point3{Float64}=Point3(0.)
+        h::Point3{Float64}=Point3(0.),
+        g::Float64 = 0.
     )
 
     zeroT = beta < 0.0
+    on_g_branch = g != 0.
     const invN = 1. / sgraph.N_nodes
 
     E_BA = BinnerA(200)
@@ -665,14 +669,21 @@ function measure!(
     srdM2xy = 0.0
     srdM2z = 0.0
 
-
-    E_tot = totalEnergy(sgraph, spins, Js, h)
+    if on_g_branch
+        E_tot = totalEnergy(sgraph, spins, Js, h, g)
+    else
+        E_tot = totalEnergy(sgraph, spins, Js, h)
+    end
 
     for i in 1:N_sweeps
         if zeroT
             E_tot = sweep(sgraph, spins, E_tot, Js, h)
         else
-            E_tot = sweep(sgraph, spins, E_tot, Js, beta, h)
+            if on_g_branch
+                E_tot = sweep(sgraph, spins, E_tot, Js, beta, h, g)
+            else
+                E_tot = sweep(sgraph, spins, E_tot, Js, beta, h)
+            end
         end
         b2 = Base.gc_bytes()
         @inbounds Es[i] = E_tot * invN
@@ -810,7 +821,8 @@ function simulate!(
         Js::Union{Vector{Float64}, Vector{Tuple{Float64, Float64}}},
         TH_method::Freezer,
         ME_sweeps::Int64,
-        h::Point3{Float64}=Point3(0.)
+        h::Point3{Float64}=Point3(0.),
+        g::Float64 = 0.
     )
 
 
@@ -832,17 +844,21 @@ function simulate!(
 
     write_header!(
         file, 1, length(TH_method), TH_method.T_max, ME_sweeps, sys_size,
-        Int64(sgraph.N_nodes), sgraph.K_edges, Js, h, T
+        Int64(sgraph.N_nodes), sgraph.K_edges, Js, h, g, T
     )
 
     # Thermalization
     init_edges!(sgraph, spins)
-
+    on_g_branch = g != 0.
     if T > 0.0
         db_exp = typemax(Int64)
         for beta in cool_to(TH_method, T) #1:TH_sweeps
             b0 = Base.gc_bytes()
-            sweep(sgraph, spins, Js, beta, h)
+            if on_g_branch
+                sweep(sgraph, spins, Js, beta, h, g)
+            else
+                sweep(sgraph, spins, Js, beta, h)
+            end
             db = Base.gc_bytes() - b0
             if db < db_exp
                 db_exp = db
@@ -858,7 +874,7 @@ function simulate!(
     end
 
     # Measurement
-    measure!(sgraph, spins, beta, Js, file, ME_sweeps, h)
+    measure!(sgraph, spins, beta, Js, file, ME_sweeps, h, g)
     close(file)
 
     nothing
@@ -876,7 +892,8 @@ function simulate!(
         Js::Union{Vector{Float64}, Vector{Tuple{Float64, Float64}}},
         TH_method::Union{ConstantT, Freezer},
         ME_sweeps::Int64,
-        h::Point3{Float64}=Point3(0.)
+        h::Point3{Float64}=Point3(0.),
+        g::Float64 = 0.
     )
 
 
@@ -885,7 +902,7 @@ function simulate!(
             sgraph, sys_size,
             path, filename * string(i),
             T, Js,
-            TH_method, ME_sweeps, h
+            TH_method, ME_sweeps, h, g
         )
     end
 
