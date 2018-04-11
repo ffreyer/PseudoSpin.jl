@@ -55,6 +55,8 @@ for argline in eachline(argfile)
         println("TODO: custom initial spin vectors")
         exit(-1)
         # push!(spins, Point3{Float64}(map(x -> parse(Float64, x), args[2:end])))
+    else
+        println("Did not recognise \"", argline, "\"")
     end
 end
 
