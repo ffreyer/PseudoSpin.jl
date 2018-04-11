@@ -1,0 +1,13 @@
+neighbors	2
+do_paths	true
+path	output/
+folder
+filename	full_test
+L	6
+Js	-1.0	-0.4	0.3	0.12	-0.1	0.0	0.0	1.0
+T	0.624000
+TH	20000
+freeze_temp	2.0
+ME	80000
+h	0.010000	0.0	0.5
+g	0.52

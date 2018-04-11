@@ -1,5 +1,5 @@
 r = RGraph(diamond("A"), 2)
-generatePaths!(r)
+generate_paths!(r)
 sim, _, _ = Basisfill(r, 3)
 
 @testset "Checking lattice graph parameter" begin

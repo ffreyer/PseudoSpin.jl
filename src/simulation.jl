@@ -53,8 +53,8 @@ function Freezer(
     )
 
     (N_switch == -1) && (N_switch = div(N, 2))
-    sin_values = 1. - sin_percentage .* sin(linspace(0., 2*pi, N_sin_points))
-    exp_values = (exp(linspace(log(exp_strength + 1), 0., N_exp_points)) - 1.) ./ exp_strength
+    sin_values = 1. - sin_percentage .* sin.(linspace(0., 2*pi, N_sin_points))
+    exp_values = (exp.(linspace(log(exp_strength + 1), 0., N_exp_points)) - 1.) ./ exp_strength
     exp_deltas = exp_values[2:end] - exp_values[1:end-1]
 
     Freezer(
@@ -182,7 +182,7 @@ binning. Returns a Binning Analysis object. Use push! to add values.
 function BinnerA(min_output_size::Integer)
     BinnerA(
         Compressor[],
-        Array(Float64, 2 * min_output_size),
+        Array{Float64}(2 * min_output_size),
         UInt32(1),
         UInt32(2 * min_output_size),
         Int64[],
@@ -608,7 +608,7 @@ function measure!(
     const invN = 1. / sgraph.N_nodes
 
     E_BA = BinnerA(200)
-    Es = Array(Float64, N_sweeps)
+    Es = Array{Float64}(N_sweeps)
 
     Mx_BA = BinnerA(200)
     My_BA = BinnerA(200)
@@ -616,8 +616,8 @@ function measure!(
 
     M2xy_BA = BinnerA(200)
     M2z_BA = BinnerA(200)
-    M2xys = Array(Float64, N_sweeps)
-    M2zs = Array(Float64, N_sweeps)
+    M2xys = Array{Float64}(N_sweeps)
+    M2zs = Array{Float64}(N_sweeps)
 
     Mquad_BA = BinnerA(200)
     Moct_BA = BinnerA(200)
@@ -734,12 +734,12 @@ function measure!(
             srM2xy += sqrt(S[1]^2 + S[2]^2)
             srdM2xy += sqrt(vars[1]^2 + vars[2]^2)
 
-            S = mapreduce(abs, +, _spins) * invN
+            S = mapreduce(v -> abs.(v), +, _spins) * invN
             srMxabs += S[1]
             srMyabs += S[2]
             srMzabs += S[3]
 
-            vars = mapreduce(s -> (abs(s) - S).^2, +, _spins) * invN
+            vars = mapreduce(s -> (abs.(s) - S).^2, +, _spins) * invN
             srdMxabs += vars[1]
             srdMyabs += vars[2]
             srdMzabs += vars[3]
@@ -782,13 +782,13 @@ function measure!(
     # end
 
     if additional_observables
-        write_JK!(file, srMx * K, srdMx * invN, "rMx  ")
-        write_JK!(file, srMy * K, srdMy * invN, "rMy  ")
-        write_JK!(file, srMz * K, srdMz * invN, "rMz  ")
-        write_JK!(file, srMxabs * K, srdMxabs * invN, "rMxa ")
-        write_JK!(file, srMyabs * K, srdMyabs * invN, "rMya ")
-        write_JK!(file, srMzabs * K, srdMzabs * invN, "rMza ")
-        write_JK!(file, srM2xy * K, srdM2xy * invN, "rMxy ")
+        write_JK!(file, srMx * invN, srdMx * invN, "rMx  ")
+        write_JK!(file, srMy * invN, srdMy * invN, "rMy  ")
+        write_JK!(file, srMz * invN, srdMz * invN, "rMz  ")
+        write_JK!(file, srMxabs * invN, srdMxabs * invN, "rMxa ")
+        write_JK!(file, srMyabs * invN, srdMyabs * invN, "rMya ")
+        write_JK!(file, srMzabs * invN, srdMzabs * invN, "rMza ")
+        write_JK!(file, srM2xy * invN, srdM2xy * invN, "rMxy ")
     end
 
     write_JK!(file, cv, dcv, "cV   ")
@@ -899,7 +899,7 @@ function simulate!(
 
     for (i, T) in enumerate(Ts)
         simulate!(
-            sgraph, sys_size,
+            sgraph, spins, sys_size,
             path, filename * string(i),
             T, Js,
             TH_method, ME_sweeps, h, g
@@ -949,20 +949,21 @@ function simulate!(;
         neighbor_search_depth::Int64 = 2,
         do_paths::Bool = true,
         L::Int64 = 6,
-        spins::Union{Vector{Point3{Float64}}, Void} = rand_spin(2*L^3),
+        spins::Vector{Point3{Float64}} = rand_spin(2*L^3),
         # Simulation parameter
-        Ts::Vector{Float64} = [1.0],
+        T::Float64 = 1.0,
+        Ts::Vector{Float64} = [T],
         J1::Float64 = 0.,
         J2::Float64 = 0.,
         K::Float64 = 0.,
-        lambda::Float64 = 0.
+        lambda::Float64 = 0.,
         Js::Union{Vector{Float64}, Vector{Tuple{Float64, Float64}}} = [
             (J1, lambda*J1),
             (J2, lambda*J2),
             (K, 0.0), (0.0, 1.0)
         ],
         h::Point3{Float64} = Point3(0.),
-        g::Float64 = 0.
+        g::Float64 = 0.,
         # Thermalization/Measurement parameters
         TH_sweeps::Int64 = 2_000_000,
         N_switch::Int64 = div(TH_sweeps, 2),
@@ -971,9 +972,9 @@ function simulate!(;
     )
 
     # Simulation graph
-    g = RGraph(diamond("A"), neighbor_search_depth)
-    do_paths && generate_paths!(g)
-    sim, flat_index, lattice_indices = Basisfill(g, L)
+    rgraph = RGraph(diamond("A"), neighbor_search_depth)
+    do_paths && generate_paths!(rgraph)
+    sim, flat_index, lattice_indices = Basisfill(rgraph, L)
 
     if folder == ""
         if !endswith(path, "/")
@@ -994,7 +995,8 @@ function simulate!(;
         L,
         path * folder,
         filename,
-        Ts,
+        length(Ts) == 1 ? T : Ts,
+        # Ts,
         Js,
         Freezer(TH_sweeps, Freeze_temperature, N_switch=N_switch),
         ME_sweeps,

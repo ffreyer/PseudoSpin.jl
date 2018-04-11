@@ -562,6 +562,56 @@ end
 function sweep(
         sgraph::SGraph,
         spins::Vector{Point3{Float64}},
+        Js::Union{Vector{Float64}, Vector{Tuple{Float64, Float64}}},
+        beta::Float64,
+        h::Point3{Float64},
+        g::Float64
+    )
+
+    for (i, new_spin) in zip(
+            rand(1:sgraph.N_nodes, sgraph.N_nodes),
+            rand_spin(sgraph.N_nodes)
+        )
+        kernel(sgraph, spins, i, new_spin, Js, beta, h, g)
+    end
+
+    nothing
+end
+
+
+# anisotropic Js, returns updated E_tot
+function kernel(
+        sgraph::SGraph,
+        spins::Vector{Point3{Float64}},
+        i::Int64,
+        new_spin::Point3{Float64},
+        Js::Vector{Tuple{Float64, Float64}},
+        beta::Float64,
+        h::Point3{Float64},
+        g::Float64
+    )
+
+    @inbounds n = sgraph.nodes[i]
+    xys, zs = generate_scalar_products(sgraph, spins, i, new_spin)
+    dE = deltaEnergy(sgraph, spins, i, new_spin, Js, xys, zs, h, g)
+
+    if dE < 0.
+        @inbounds spins[i] = new_spin
+        update_edges!(n, xys, zs)
+        return nothing
+    elseif rand() < exp(-dE * beta)
+        @inbounds spins[i] = new_spin
+        update_edges!(n, xys, zs)
+        return nothing
+    end
+
+    nothing
+end
+
+
+function sweep(
+        sgraph::SGraph,
+        spins::Vector{Point3{Float64}},
         E_tot::Float64,
         Js::Union{Vector{Float64}, Vector{Tuple{Float64, Float64}}},
         beta::Float64,

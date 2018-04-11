@@ -41,7 +41,7 @@ export sc, bcc, fcc, diamond
 
 
 include("RGraph.jl")
-export RGraph, generatePaths!
+export RGraph, generate_paths!
 
 
 include("SGraph.jl")

@@ -17,6 +17,10 @@ include("RGraph.jl")
 include("simulation.jl")
 
 
+ARGS = ["parameters/test.param"]
+println("Attempting simulation with 20k + 80k sweeps. Runtime: (estimate: ~4min)")
+@time include("mainf.jl")
+
 
 # @test begin
 #     # ...
