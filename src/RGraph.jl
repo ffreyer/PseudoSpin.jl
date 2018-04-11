@@ -139,11 +139,11 @@ end
 
 
 """
-    generatePaths!(RGraph)
+    generate_paths!(RGraph)
 
 Adds edges for the 4-spin term to an existing RGraph.
 """
-function generatePaths!(rgraph::RGraph)
+function generate_paths!(rgraph::RGraph)
     for i1 in eachindex(rgraph.nodes)       # for each node n1
         paths = PathREdge[]                 # n1 is at Vec3i(0, 0, 0) per definition
         for e1 in rgraph.nodes[i1].edges[1]     # each edge n1 -> n2

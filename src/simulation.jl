@@ -908,3 +908,99 @@ function simulate!(
 
     nothing
 end
+
+
+# """
+#     simulate!(;
+#         path::String = "",
+#         folder::String = "",
+#         filename::String = "",
+#
+#         neighbor_search_depth::Int64 = 2,
+#         do_paths::Bool = true,
+#         L::Int64 = 6,
+#         spins::Union{Vector{Point3{Float64}}, Void} = rand_spin(2*L^3),
+#
+#         Ts::Vector{Float64} = [1.0],
+#         J1::Float64 = 0.,
+#         J2::Float64 = 0.,
+#         K::Float64 = 0.,
+#         lambda::Float64 = 0.
+#         Js::Union{Vector{Float64}, Vector{Tuple{Float64, Float64}}} = [
+#             (J1, lambda*J1),
+#             (J2, lambda*J2),
+#             (K, 0.0), (0.0, 1.0)
+#         ],
+#         h::Point3{Float64} = Point3(0.),
+#         g::Float64 = 0.
+#
+#         TH_sweeps::Int64 = 2_000_000,
+#         N_switch::Int64 = div(TH_sweeps, 2),
+#         Freeze_temperature::Float64 = 1.5*maximum(Ts),
+#         ME_sweeps::Int64 = 5_000_000
+#     )
+# """
+function simulate!(;
+        # files
+        path::String = "",
+        folder::String = "",
+        filename::String = "",
+        # Simulation graph
+        neighbor_search_depth::Int64 = 2,
+        do_paths::Bool = true,
+        L::Int64 = 6,
+        spins::Union{Vector{Point3{Float64}}, Void} = rand_spin(2*L^3),
+        # Simulation parameter
+        Ts::Vector{Float64} = [1.0],
+        J1::Float64 = 0.,
+        J2::Float64 = 0.,
+        K::Float64 = 0.,
+        lambda::Float64 = 0.
+        Js::Union{Vector{Float64}, Vector{Tuple{Float64, Float64}}} = [
+            (J1, lambda*J1),
+            (J2, lambda*J2),
+            (K, 0.0), (0.0, 1.0)
+        ],
+        h::Point3{Float64} = Point3(0.),
+        g::Float64 = 0.
+        # Thermalization/Measurement parameters
+        TH_sweeps::Int64 = 2_000_000,
+        N_switch::Int64 = div(TH_sweeps, 2),
+        Freeze_temperature::Float64 = 1.5*maximum(Ts),
+        ME_sweeps::Int64 = 5_000_000
+    )
+
+    # Simulation graph
+    g = RGraph(diamond("A"), neighbor_search_depth)
+    do_paths && generate_paths!(g)
+    sim, flat_index, lattice_indices = Basisfill(g, L)
+
+    if folder == ""
+        if !endswith(path, "/")
+            path = path * "/"
+        end
+    else
+        if !endswith(folder, "/")
+            folder = folder * "/"
+        end
+        if startswith(folder, "/")
+            folder = folder[2:end]
+        end
+    end
+
+    simulate!(
+        sim,
+        spins,
+        L,
+        path * folder,
+        filename,
+        Ts,
+        Js,
+        Freezer(TH_sweeps, Freeze_temperature, N_switch=N_switch),
+        ME_sweeps,
+        h,
+        g
+    )
+
+    nothing
+end
