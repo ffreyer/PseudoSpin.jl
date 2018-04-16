@@ -6,6 +6,7 @@ sim, _, _ = Basisfill(r, 3)
     @test sim.N_nodes == 2*3^3
     @test length(sim.first) == 4*3^3    # 1/2 * 4 * N_nodes
     @test length(sim.second) == 12*3^3
+    @test lenth(sim.paths) == 4*3^3 
     @test mapreduce(length, +, sim.paths) == 36*3^3
 
     for n in sim.nodes
