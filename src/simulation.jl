@@ -827,12 +827,11 @@ function simulate!(
 
 
     # Fool-proof? file creation that was actually not fool-proof
-    if isdir(path)
+    if !isdir(path)
         println(
-            path, " already exists",
+            path, " does not exist",
             ". New files will be inserted."
         )
-    else
         mkdir(path)
     end
     if isfile(path * filename * ".part")
