@@ -4,10 +4,10 @@
 # N = -1
 
 Ts = [
-	0.001, 
-	collect(0.01:0.01:0.3)..., 
-	collect(0.32:0.02:0.7)..., 
-	collect(0.73:0.03:1.0)..., 
+	0.001,
+	collect(0.01:0.01:0.3)...,
+	collect(0.32:0.02:0.7)...,
+	collect(0.73:0.03:1.0)...,
 	collect(1.05:0.05:2.0)...
 ]
 NT = length(Ts)
@@ -139,7 +139,7 @@ open(bash_filename, "w") do file		# <--- CHANGE
     write(file, "#SBATCH --array=0-" * string(N-1) * "\n")
     write(file, "\n")
 
-    write(file, "source /projects/ag‐trebst/julia/0.6/load\n")
+    write(file, "source /projects/ag-trebst/julia/0.6/load\n")
     write(file, "\n")
 
     write(file, "input_path=\"" * string(input_path) * "\"\n")
