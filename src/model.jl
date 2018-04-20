@@ -30,37 +30,6 @@ Calculates the total energy of the current system.
 function totalEnergy(
         sgraph::SGraph,
         spins::Vector{Point3{Float64}},
-        Js::Vector{Float64},
-        h::Point3{Float64}=Point3(0.)
-    )
-
-    E = 0.
-
-    for e in sgraph.second
-        E += Js[2] * dot(spins[e.n1], spins[e.n2])
-    end
-
-    for i in eachindex(sgraph.first)
-        e = sgraph.first[i]
-        E += Js[1] * (e.xy + e.z)
-        for p in sgraph.paths[i]
-            E += Js[3] * (e.xy + e.z) * Js[4] * (p.xy + p.z)
-        end
-    end
-
-    if !(Tuple(h) == (0., 0., 0.))
-        for S in spins
-            E -= dot(h, S)
-        end
-    end
-
-    E
-end
-
-
-function totalEnergy(
-        sgraph::SGraph,
-        spins::Vector{Point3{Float64}},
         Js::Vector{Tuple{Float64, Float64}},
         h::Point3{Float64}=Point3(0.)
     )
@@ -229,73 +198,14 @@ end
 # I tried to optimize this stuff as much as I could...
 
 
-# Energy shift for isotropic Js
-# This function is not really used anymore and runs about as fast as the
-# anisotropic equivalent below.
+# Energy shift for anisotropic Js
+# Checked vs totalEnergy() for anisotropic J3, J4 (aka K) in reordered 144-term
+# form. Error ~1e-12% (1e-14 as factor)
 """
     deltaEnergy(node, spins, index, new_spin, Js, xys, zs, h)
 
 Calculates the energy difference for a spin at some index changing to new_spin.
 """
-function deltaEnergy(
-        n::SNode,                           # the changing node
-        spins::Vector{Point3{Float64}},     # current spins
-        i::Int64,                           # index of node/changed spin
-        new_spin::Point3{Float64},          # new spin
-        Js::Vector{Float64},                # bond parameters
-        xys::Vector{Float64},               # new scalar products
-        zs::Vector{Float64},                # new scalar products
-        h::Point3{Float64}=Point3(0.)       # external field
-    )
-
-    # Runtime:
-    # xys, zs: 4x 3 multiplication, 4 additions -> (12, 4) (used for NN, paths)
-
-    # NN: [12, 4] + (1, 4x 4) = (1, 16) + [12, 4]
-    # NNN: 12x (3, 3) + (0, 3) = (36, 39)
-    # paths: [12, 4] + 36x (0, 2) + 4x (1, 4) + (2, 0) = (6, 88) + [12, 4]
-    #                                       but [12, 4] is reused from NN
-    # field: (3, 6)
-    # Assuming multiplication is about 4 times as expensive as addition/subtraction
-    # scalar products: 52*
-    # NN: 20 [+ 52]*
-    # NNN: 183
-    # paths: 112 [+ 52]*
-    # field: 18
-
-    # calculate energy difference
-    dE = 0.
-    temp = 0.
-    for (xy, z, j) in zip(xys, zs, eachindex(n.first))
-        @inbounds e = n.first[j]
-        temp2 = 0.
-        @fastmath dE += xy - e.xy + z - e.z
-        for p in n.paths[j]
-            @fastmath temp2 += p.xy + p.z # p.xy and p.z don't change
-        end
-        @fastmath temp += temp2 * (xy - e.xy + z - e.z)
-    end
-    @fastmath @inbounds dE *= Js[1]
-    @fastmath @inbounds dE += Js[3] * Js[4] * temp
-
-    temp = 0.
-    @fastmath @inbounds delta_s = new_spin - spins[i]
-    for j in n.second
-        @fastmath @inbounds temp += dot(delta_s, spins[j])
-    end
-    @fastmath @inbounds dE += Js[2] * temp
-
-    if !(Tuple(h) == (0., 0., 0.))
-        @fastmath @inbounds dE -= dot(h, (new_spin - spins[i]))
-    end
-
-    return dE
-end
-
-
-# Energy shift for anisotropic Js
-# Checked vs totalEnergy() for anisotropic J3, J4 (aka K) in reordered 144-term
-# form. Error ~1e-12% (1e-14 as factor)
 function deltaEnergy(
         n::SNode,
         spins::Vector{Point3{Float64}},
@@ -479,44 +389,13 @@ end
 
 
 # This attempts a single spin flip for a given new_spin and array position i.
-# Isotropic version, no update to total Energy
+# Anisotropic version, no update to total Energy
 """
     kernel(sgraph, spins, index, new_spin[, E_tot], Js, beta, h)
 
 Attempts a single spin flip. The current total energy E_tot can be given
 optionally. If done so, the function will return the updated total energy.
 """
-function kernel(
-        sgraph::SGraph,
-        spins::Vector{Point3{Float64}},
-        i::Int64,
-        new_spin::Point3{Float64},
-        Js::Vector{Float64},
-        beta::Float64,
-        h::Point3{Float64}=Point3(0.)
-    )
-
-    # energy difference implemented for anisotropy
-    # calculate new scalar products
-    @inbounds n = sgraph.nodes[i]
-    xys, zs = generate_scalar_products(sgraph, spins, i, new_spin)
-    dE = deltaEnergy(n, spins, i, new_spin, Js, xys, zs, h)
-
-    if dE < 0.
-        @inbounds spins[i] = new_spin
-        update_edges!(n, xys, zs)
-        return nothing
-    elseif rand() < exp(-dE * beta)
-        @inbounds spins[i] = new_spin
-        update_edges!(n, xys, zs)
-        return nothing
-    end
-
-    nothing
-end
-
-
-# Anisotropic version, no update to total Energy
 function kernel(
         sgraph::SGraph,
         spins::Vector{Point3{Float64}},
@@ -544,38 +423,6 @@ function kernel(
     end
 
     nothing
-end
-
-
-# isotropic Js, returns updated E_tot
-function kernel(
-        sgraph::SGraph,
-        spins::Vector{Point3{Float64}},
-        i::Int64,
-        new_spin::Point3{Float64},
-        E_tot::Float64,
-        Js::Vector{Float64},
-        beta::Float64,
-        h::Point3{Float64}=Point3(0.)
-    )
-
-    # energy difference implemented for anisotropy
-    # calculate new scalar products
-    @inbounds n = sgraph.nodes[i]
-    xys, zs = generate_scalar_products(sgraph, spins, i, new_spin)
-    dE = deltaEnergy(n, spins, i, new_spin, Js, xys, zs, h)
-
-    if dE < 0.
-        @inbounds spins[i] = new_spin
-        update_edges!(n, xys, zs)
-        return E_tot + dE
-    elseif rand() < exp(-dE * beta)
-        @inbounds spins[i] = new_spin
-        update_edges!(n, xys, zs)
-        return E_tot + dE
-    end
-
-    E_tot
 end
 
 
@@ -715,7 +562,7 @@ successful spin flip and returned in the end.
 function sweep(
         sgraph::SGraph,
         spins::Vector{Point3{Float64}},
-        Js::Union{Vector{Float64}, Vector{Tuple{Float64, Float64}}},
+        Js::Vector{Tuple{Float64, Float64}},
         beta::Float64,
         h::Point3{Float64}=Point3(0.)
     )
@@ -734,7 +581,7 @@ end
 function sweep(
         sgraph::SGraph,
         spins::Vector{Point3{Float64}},
-        Js::Union{Vector{Float64}, Vector{Tuple{Float64, Float64}}},
+        Js::Vector{Tuple{Float64, Float64}},
         h::Point3{Float64}=Point3(0.)
     )
 
@@ -753,7 +600,7 @@ function sweep(
         sgraph::SGraph,
         spins::Vector{Point3{Float64}},
         E_tot::Float64,
-        Js::Union{Vector{Float64}, Vector{Tuple{Float64, Float64}}},
+        Js::Vector{Tuple{Float64, Float64}},
         beta::Float64,
         h::Point3{Float64}=Point3(0.)
     )
@@ -773,7 +620,7 @@ function sweep(
         sgraph::SGraph,
         spins::Vector{Point3{Float64}},
         E_tot::Float64,
-        Js::Union{Vector{Float64}, Vector{Tuple{Float64, Float64}}},
+        Js::Vector{Tuple{Float64, Float64}},
         h::Point3{Float64}=Point3(0.)
     )
 
@@ -792,7 +639,7 @@ end
 function sweep(
         sgraph::SGraph,
         spins::Vector{Point3{Float64}},
-        Js::Union{Vector{Float64}, Vector{Tuple{Float64, Float64}}},
+        Js::Vector{Tuple{Float64, Float64}},
         beta::Float64,
         h::Point3{Float64},
         g::Float64
@@ -814,7 +661,7 @@ function sweep(
         sgraph::SGraph,
         spins::Vector{Point3{Float64}},
         E_tot::Float64,
-        Js::Union{Vector{Float64}, Vector{Tuple{Float64, Float64}}},
+        Js::Vector{Tuple{Float64, Float64}},
         beta::Float64,
         h::Point3{Float64},
         g::Float64

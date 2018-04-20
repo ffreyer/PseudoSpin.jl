@@ -431,7 +431,7 @@ function write_header!(
         sys_size::Int64,
         N_nodes::Int64,
         K_edges::Int64,
-        Js::Union{Vector{Float64}, Vector{Tuple{Float64, Float64}}},
+        Js::Vector{Tuple{Float64, Float64}},
         h::Point3{Float64},
         T::Float64,
         g::Float64
@@ -596,7 +596,7 @@ function measure!(
         sgraph::SGraph,
         spins::Vector{Point3{Float64}},
         beta::Float64,
-        Js::Union{Vector{Float64}, Vector{Tuple{Float64, Float64}}},
+        Js::Vector{Tuple{Float64, Float64}},
         file::IOStream,
         N_sweeps::Int64=1000,
         h::Point3{Float64}=Point3(0.),
@@ -750,8 +750,6 @@ function measure!(
     f(x, x2, x3) = (
         (x3 - 3*x*x2 + 2*x^3) * beta^4 * sgraph.N_nodes -
         2 * (x2 - x^2) * beta^3
-        # 2 * (x2 - x^2) * beta^3 +
-        # (x3 - 3*x*x2 + 2*x^3) * beta^4 * sgraph.N_nodes
     ) * sgraph.N_nodes
 
     cv, dcv = jackknife((x, x2) -> (x2 - x^2) * beta^2 * sgraph.N_nodes, Es, Es.^2)
@@ -777,9 +775,6 @@ function measure!(
     write_BA!(file, Dimer_xy_var, "DxyV ")
     write_BA!(file, Dimer_z, "Dz   ")
     write_BA!(file, Dimer_z_var, "DzV  ")
-    # for i in eachindex(dimer)
-    #     write_BA!(file, dimer[i], rpad(string(i), 5))
-    # end
 
     if additional_observables
         write_JK!(file, srMx * invN, srdMx * invN, "rMx  ")
@@ -818,7 +813,7 @@ function simulate!(
         path::String,
         filename::String,
         T::Float64,
-        Js::Union{Vector{Float64}, Vector{Tuple{Float64, Float64}}},
+        Js::Vector{Tuple{Float64, Float64}},
         TH_method::Freezer,
         ME_sweeps::Int64,
         h::Point3{Float64}=Point3(0.),
@@ -850,20 +845,21 @@ function simulate!(
     init_edges!(sgraph, spins)
     on_g_branch = g != 0.
     if T > 0.0
-        db_exp = typemax(Int64)
+        # db_exp = typemax(Int64)
         for beta in cool_to(TH_method, T) #1:TH_sweeps
-            b0 = Base.gc_bytes()
+            # b0 = Base.gc_bytes()
             if on_g_branch
                 sweep(sgraph, spins, Js, beta, h, g)
             else
                 sweep(sgraph, spins, Js, beta, h)
             end
-            db = Base.gc_bytes() - b0
-            if db < db_exp
-                db_exp = db
-            elseif db > db_exp
-                println("Therm. ", db)
-           end
+            # db = Base.gc_bytes() - b0
+            # if db < db_exp
+                # db_exp = db
+            # elseif db > db_exp
+                # println("Therm. ", db)
+        #    end
+            yield()
         end
 
         beta = 1. / T
@@ -888,7 +884,7 @@ function simulate!(
         path::String,
         filename::String,
         Ts::Vector{Float64},    # <- multiple
-        Js::Union{Vector{Float64}, Vector{Tuple{Float64, Float64}}},
+        Js::Vector{Tuple{Float64, Float64}},
         TH_method::Union{ConstantT, Freezer},
         ME_sweeps::Int64,
         h::Point3{Float64}=Point3(0.),
@@ -909,36 +905,36 @@ function simulate!(
 end
 
 
-# """
-#     simulate!(;
-#         path::String = "",
-#         folder::String = "",
-#         filename::String = "",
-#
-#         neighbor_search_depth::Int64 = 2,
-#         do_paths::Bool = true,
-#         L::Int64 = 6,
-#         spins::Union{Vector{Point3{Float64}}, Void} = rand_spin(2*L^3),
-#
-#         Ts::Vector{Float64} = [1.0],
-#         J1::Float64 = 0.,
-#         J2::Float64 = 0.,
-#         K::Float64 = 0.,
-#         lambda::Float64 = 0.
-#         Js::Union{Vector{Float64}, Vector{Tuple{Float64, Float64}}} = [
-#             (J1, lambda*J1),
-#             (J2, lambda*J2),
-#             (K, 0.0), (0.0, 1.0)
-#         ],
-#         h::Point3{Float64} = Point3(0.),
-#         g::Float64 = 0.
-#
-#         TH_sweeps::Int64 = 2_000_000,
-#         N_switch::Int64 = div(TH_sweeps, 2),
-#         Freeze_temperature::Float64 = 1.5*maximum(Ts),
-#         ME_sweeps::Int64 = 5_000_000
-#     )
-# """
+"""
+    simulate!(;
+        path::String = "",
+        folder::String = "",
+        filename::String = "",
+
+        neighbor_search_depth::Int64 = 2,
+        do_paths::Bool = true,
+        L::Int64 = 6,
+        spins::Union{Vector{Point3{Float64}}, Void} = rand_spin(2*L^3),
+
+        Ts::Vector{Float64} = [1.0],
+        J1::Float64 = 0.,
+        J2::Float64 = 0.,
+        K::Float64 = 0.,
+        lambda::Float64 = 0.
+        Js::Vector{Tuple{Float64, Float64}} = [
+            (J1, lambda*J1),
+            (J2, lambda*J2),
+            (K, 0.0), (0.0, 1.0)
+        ],
+        h::Point3{Float64} = Point3(0.),
+        g::Float64 = 0.
+
+        TH_sweeps::Int64 = 2_000_000,
+        N_switch::Int64 = div(TH_sweeps, 2),
+        Freeze_temperature::Float64 = 1.5*maximum(Ts),
+        ME_sweeps::Int64 = 5_000_000
+    )
+"""
 function simulate!(;
         # files
         path::String = "",
@@ -956,7 +952,7 @@ function simulate!(;
         J2::Float64 = 0.,
         K::Float64 = 0.,
         lambda::Float64 = 0.,
-        Js::Union{Vector{Float64}, Vector{Tuple{Float64, Float64}}} = [
+        Js::Vector{Tuple{Float64, Float64}} = [
             (J1, lambda*J1),
             (J2, lambda*J2),
             (K, 0.0), (0.0, 1.0)

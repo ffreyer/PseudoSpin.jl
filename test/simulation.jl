@@ -6,7 +6,7 @@ sim, _, _ = Basisfill(r, 3)
     @test sim.N_nodes == 2*3^3
     @test length(sim.first) == 4*3^3    # 1/2 * 4 * N_nodes
     @test length(sim.second) == 12*3^3
-    @test lenth(sim.paths) == 4*3^3 
+    @test length(sim.paths) == 4*3^3
     @test mapreduce(length, +, sim.paths) == 36*3^3
 
     for n in sim.nodes
@@ -27,50 +27,6 @@ g = 0.0
 
 # high temperature (10), so most spin flip attempts should be successful
 @testset "Testing E_total" begin
-    ### isotropic Energy functions
-    # NN
-    Js = [1.0, 0.0, 0.0, 0.0]
-    E_tot = totalEnergy(sim, spins, Js, h)
-    for _ in 1:100
-        E_tot = sweep(sim, spins, E_tot, Js, 1./10., h)
-    end
-    @test E_tot ≈ totalEnergy(sim, spins, Js, h)
-
-    # NNN
-    Js = [0.0, 1.0, 0.0, 0.0]
-    E_tot = totalEnergy(sim, spins, Js, h)
-    for _ in 1:100
-        E_tot = sweep(sim, spins, E_tot, Js, 1./10., h)
-    end
-    @test E_tot ≈ totalEnergy(sim, spins, Js, h)
-
-    # paths
-    Js = [0.0, 0.0, 1.0, 0.3]
-    E_tot = totalEnergy(sim, spins, Js, h)
-    for _ in 1:100
-        E_tot = sweep(sim, spins, E_tot, Js, 1./10., h)
-    end
-    @test E_tot ≈ totalEnergy(sim, spins, Js, h)
-
-    # fields
-    Js = [0.0, 0.0, 0.0, 0.0]
-    h = Point3(0.3, 0.6, 0.9)
-    E_tot = totalEnergy(sim, spins, Js, h)
-    for _ in 1:100
-        E_tot = sweep(sim, spins, E_tot, Js, 1./10., h)
-    end
-    @test E_tot ≈ totalEnergy(sim, spins, Js, h)
-
-    # all
-    Js = -rand(4)
-    h = Point3(-rand(3))
-    E_tot = totalEnergy(sim, spins, Js, h)
-    for _ in 1:100
-        E_tot = sweep(sim, spins, E_tot, Js, 1./10., h)
-    end
-    @test E_tot ≈ totalEnergy(sim, spins, Js, h)
-
-
     ### anisotropic
     # NN
     Js = [(1.0, 0.5), (0.0, 0.0), (0.0, 0.0), (0.0, 0.0)]
