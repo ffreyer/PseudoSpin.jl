@@ -382,6 +382,89 @@ function deltaEnergy(
 end
 
 
+# Energy shift for (Js, h, g)
+function deltaEnergy_no_paths(
+        #n::SNode,
+        sgraph::SGraph,
+        spins::Vector{Point3{Float64}},
+        i::Int64,
+        new_spin::Point3{Float64},
+        Js::Vector{Tuple{Float64, Float64}},
+        xys::Vector{Float64},
+        zs::Vector{Float64},
+        h::Point3{Float64},
+        g::Float64
+    )
+
+    @inbounds n = sgraph.nodes[i]
+    @inbounds delta_s = new_spin - spins[i]
+
+    # allocations for nearest neighbour
+    xy1 = 0.
+    z1 = 0.
+
+    # Allocation for 3-spin
+    temp = 0.
+
+    # Calculate nearest neighbours and paths
+    for (xy, z, j) in zip(xys, zs, eachindex(n.first))
+        @inbounds e = n.first[j]    # NN edge
+        @fastmath dxy = xy - e.xy   # ΔS_xy
+        @fastmath dz = z - e.z      # ΔS_z
+        @fastmath xy1 += dxy        # xy - e.xy
+        @fastmath z1 += dz          # z - e.z
+
+        # g/3-spin stuff
+        sj = n.first[j].n1 != i ? n.first[j].n1 : n.first[j].n2
+        dxxyy = delta_s[1] * spins[sj][1] - delta_s[2] * spins[sj][2]
+        dxyyx = delta_s[1] * spins[sj][2] + delta_s[2] * spins[sj][1]
+
+        x = 0.
+        y = 0.
+
+        # second part (x - a - b)
+        for k in 1:4
+            _n = sgraph.nodes[sj]
+            n.first[j] == _n.first[k] && continue
+            sk = _n.first[k].n1 != sj ? _n.first[k].n1 : _n.first[k].n2
+            x += spins[sk][1]
+            y += spins[sk][2]
+        end
+
+        # second part (b - x - a)
+        for k in j+1:4
+            sk = n.first[k].n1 != i ? n.first[k].n1 : n.first[k].n2
+            x += spins[sk][1]
+            y += spins[sk][2]
+        end
+
+        temp += dxxyy * y + dxyyx * x
+    end
+    @fastmath @inbounds dE = begin
+        Js[1][1] * xy1 +
+        Js[1][2] * z1 +
+        g * temp
+    end
+
+
+    # Calculate Next Nearest Neighbor terms
+    xy1 = 0.
+    z1 = 0.
+    for j in n.second
+        @fastmath @inbounds xy1 += delta_s[1] * spins[j][1] + delta_s[2] * spins[j][2]
+        @fastmath @inbounds z1 += delta_s[3] * spins[j][3]
+    end
+    @fastmath @inbounds dE += Js[2][1] * xy1 + Js[2][2] * z1
+
+    # Calculate field term
+    if !(Tuple(h) == (0., 0., 0.))
+        @fastmath @inbounds dE -= dot(h, (new_spin - spins[i]))
+    end
+
+    dE
+end
+
+
 
 ################################################################################
 #### single spin flip kernels
@@ -547,13 +630,74 @@ function kernel(
 end
 
 
+# (reduced Js, h, g)
+function kernel_no_paths(
+        sgraph::SGraph,
+        spins::Vector{Point3{Float64}},
+        i::Int64,
+        new_spin::Point3{Float64},
+        E_tot::Float64,
+        Js::Vector{Tuple{Float64, Float64}},
+        beta::Float64,
+        h::Point3{Float64},
+        g::Float64
+    )
+
+    @inbounds n = sgraph.nodes[i]
+    xys, zs = generate_scalar_products(sgraph, spins, i, new_spin)
+    dE = deltaEnergy_no_paths(sgraph, spins, i, new_spin, Js, xys, zs, h, g)
+
+    if dE < 0.
+        @inbounds spins[i] = new_spin
+        update_edges!(n, xys, zs)
+        return E_tot + dE
+    elseif rand() < exp(-dE * beta)
+        @inbounds spins[i] = new_spin
+        update_edges!(n, xys, zs)
+        return E_tot + dE
+    end
+
+    E_tot
+end
+
+
+# (reduced Js, h, g) w/o E updates
+function kernel_no_paths(
+        sgraph::SGraph,
+        spins::Vector{Point3{Float64}},
+        i::Int64,
+        new_spin::Point3{Float64},
+        Js::Vector{Tuple{Float64, Float64}},
+        beta::Float64,
+        h::Point3{Float64},
+        g::Float64
+    )
+
+    @inbounds n = sgraph.nodes[i]
+    xys, zs = generate_scalar_products(sgraph, spins, i, new_spin)
+    dE = deltaEnergy_no_paths(sgraph, spins, i, new_spin, Js, xys, zs, h, g)
+
+    if dE < 0.
+        @inbounds spins[i] = new_spin
+        update_edges!(n, xys, zs)
+        return nothing
+    elseif rand() < exp(-dE * beta)
+        @inbounds spins[i] = new_spin
+        update_edges!(n, xys, zs)
+        return nothing
+    end
+
+    nothing
+end
+
+
 ################################################################################
 #### sweep functions
 ################################################################################
 
 
 """
-    sweep(sgraph, spins[, E_tot], Js, beta, h)
+    sweep(sgraph, spins[, E_tot], Js, beta[, h[, g]])
 
 Attempts as many spin flips as there are sites in the lattice. The current total
 energy E_tot can be given optionally. If done so, it will be updated after each
@@ -562,22 +706,69 @@ successful spin flip and returned in the end.
 function sweep(
         sgraph::SGraph,
         spins::Vector{Point3{Float64}},
+        E_tot::Float64,
         Js::Vector{Tuple{Float64, Float64}},
         beta::Float64,
-        h::Point3{Float64}=Point3(0.)
+        h::Point3{Float64} = Point3{Float64}(0.),
+        g::Float64 = 0.
     )
 
-    for (i, new_spin) in zip(
-            rand(1:sgraph.N_nodes, sgraph.N_nodes),
-            rand_spin(sgraph.N_nodes)
-        )
-        kernel(sgraph, spins, i, new_spin, Js, beta, h)
+    zipped = zip(
+        rand(1:sgraph.N_nodes, sgraph.N_nodes),
+        rand_spin(sgraph.N_nodes)
+    )
+
+    if g == 0.
+        for (i, new_spin) in zipped
+            E_tot = kernel(sgraph, spins, i, new_spin, E_tot, Js, beta, h)
+        end
+    elseif Js[3] == (0., 0.)
+        for (i, new_spin) in zipped
+            E_tot = kernel_no_paths(sgraph, spins, i, new_spin, E_tot, Js, beta, h, g)
+        end
+    else
+        for (i, new_spin) in zipped
+            E_tot = kernel(sgraph, spins, i, new_spin, E_tot, Js, beta, h, g)
+        end
+    end
+
+    E_tot
+end
+
+
+function sweep(
+        sgraph::SGraph,
+        spins::Vector{Point3{Float64}},
+        Js::Vector{Tuple{Float64, Float64}},
+        beta::Float64,
+        h::Point3{Float64} = Point3{Float64}(0.),
+        g::Float64 = 0.
+    )
+
+    zipped = zip(
+        rand(1:sgraph.N_nodes, sgraph.N_nodes),
+        rand_spin(sgraph.N_nodes)
+    )
+
+    if g == 0.
+        for (i, new_spin) in zipped
+            kernel(sgraph, spins, i, new_spin, Js, beta, h)
+        end
+    elseif Js[3] == (0., 0.)
+        for (i, new_spin) in zipped
+            kernel_no_paths(sgraph, spins, i, new_spin, Js, beta, h, g)
+        end
+    else
+        for (i, new_spin) in zipped
+            kernel(sgraph, spins, i, new_spin, Js, beta, h, g)
+        end
     end
 
     nothing
 end
 
 
+# no beta
 function sweep(
         sgraph::SGraph,
         spins::Vector{Point3{Float64}},
@@ -586,33 +777,13 @@ function sweep(
     )
 
     for (i, new_spin) in zip(
-            rand(1:sgraph.N_nodes, sgraph.N_nodes),
-            rand_spin(sgraph.N_nodes)
+        rand(1:sgraph.N_nodes, sgraph.N_nodes),
+        rand_spin(sgraph.N_nodes)
         )
         kernel(sgraph, spins, i, new_spin, Js, h)
     end
 
     nothing
-end
-
-
-function sweep(
-        sgraph::SGraph,
-        spins::Vector{Point3{Float64}},
-        E_tot::Float64,
-        Js::Vector{Tuple{Float64, Float64}},
-        beta::Float64,
-        h::Point3{Float64}=Point3(0.)
-    )
-
-    for (i, new_spin) in zip(
-            rand(1:sgraph.N_nodes, sgraph.N_nodes),
-            rand_spin(sgraph.N_nodes)
-        )
-        E_tot = kernel(sgraph, spins, i, new_spin, E_tot, Js, beta, h)
-    end
-
-    E_tot
 end
 
 
@@ -635,44 +806,82 @@ function sweep(
 end
 
 
-# (Js, h, g) w/o E update
-function sweep(
-        sgraph::SGraph,
-        spins::Vector{Point3{Float64}},
-        Js::Vector{Tuple{Float64, Float64}},
-        beta::Float64,
-        h::Point3{Float64},
-        g::Float64
-    )
 
-    for (i, new_spin) in zip(
-            rand(1:sgraph.N_nodes, sgraph.N_nodes),
-            rand_spin(sgraph.N_nodes)
-        )
-        kernel(sgraph, spins, i, new_spin, Js, beta, h, g)
-    end
+# function sweep(
+#         sgraph::SGraph,
+#         spins::Vector{Point3{Float64}},
+#         Js::Vector{Tuple{Float64, Float64}},
+#         beta::Float64,
+#         h::Point3{Float64}=Point3(0.)
+#     )
+#
+#     for (i, new_spin) in zip(
+#             rand(1:sgraph.N_nodes, sgraph.N_nodes),
+#             rand_spin(sgraph.N_nodes)
+#         )
+#         kernel(sgraph, spins, i, new_spin, Js, beta, h)
+#     end
+#
+#     nothing
+# end
 
-    nothing
-end
+# function sweep(
+#         sgraph::SGraph,
+#         spins::Vector{Point3{Float64}},
+#         E_tot::Float64,
+#         Js::Vector{Tuple{Float64, Float64}},
+#         beta::Float64,
+#         h::Point3{Float64}=Point3(0.)
+#     )
+#
+#     for (i, new_spin) in zip(
+#             rand(1:sgraph.N_nodes, sgraph.N_nodes),
+#             rand_spin(sgraph.N_nodes)
+#         )
+#         E_tot = kernel(sgraph, spins, i, new_spin, E_tot, Js, beta, h)
+#     end
+#
+#     E_tot
+# end
 
-
-# (UJs, h, g) w/ E update
-function sweep(
-        sgraph::SGraph,
-        spins::Vector{Point3{Float64}},
-        E_tot::Float64,
-        Js::Vector{Tuple{Float64, Float64}},
-        beta::Float64,
-        h::Point3{Float64},
-        g::Float64
-    )
-
-    for (i, new_spin) in zip(
-            rand(1:sgraph.N_nodes, sgraph.N_nodes),
-            rand_spin(sgraph.N_nodes)
-        )
-        E_tot = kernel(sgraph, spins, i, new_spin, E_tot, Js, beta, h, g)
-    end
-
-    E_tot
-end
+# # (Js, h, g) w/o E update
+# function sweep(
+#         sgraph::SGraph,
+#         spins::Vector{Point3{Float64}},
+#         Js::Vector{Tuple{Float64, Float64}},
+#         beta::Float64,
+#         h::Point3{Float64},
+#         g::Float64
+#     )
+#
+#     for (i, new_spin) in zip(
+#             rand(1:sgraph.N_nodes, sgraph.N_nodes),
+#             rand_spin(sgraph.N_nodes)
+#         )
+#         kernel(sgraph, spins, i, new_spin, Js, beta, h, g)
+#     end
+#
+#     nothing
+# end
+#
+#
+# # (UJs, h, g) w/ E update
+# function sweep(
+#         sgraph::SGraph,
+#         spins::Vector{Point3{Float64}},
+#         E_tot::Float64,
+#         Js::Vector{Tuple{Float64, Float64}},
+#         beta::Float64,
+#         h::Point3{Float64},
+#         g::Float64
+#     )
+#
+#     for (i, new_spin) in zip(
+#             rand(1:sgraph.N_nodes, sgraph.N_nodes),
+#             rand_spin(sgraph.N_nodes)
+#         )
+#         E_tot = kernel(sgraph, spins, i, new_spin, E_tot, Js, beta, h, g)
+#     end
+#
+#     E_tot
+# end
