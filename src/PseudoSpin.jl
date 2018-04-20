@@ -15,7 +15,7 @@ __precompile__(true)
 try
     using FixedSizeArrays
 catch e
-    println("FixedSizeArrays not available. Trying StaticArrays.")
+    # println("FixedSizeArrays not available. Trying StaticArrays.")
     try
         using StaticArrays.FixedSizeArrays
     catch e
