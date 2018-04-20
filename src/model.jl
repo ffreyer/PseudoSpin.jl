@@ -95,6 +95,71 @@ function totalEnergy(
 end
 
 
+# total Energy for (Js, h, g)
+function totalEnergy(
+        sgraph::SGraph,
+        spins::Vector{Point3{Float64}},
+        Js::Vector{Tuple{Float64, Float64}},
+        h::Point3{Float64},
+        g::Float64
+    )
+
+    E = 0.
+    for e in sgraph.second
+        E += Js[2][1] * (
+            spins[e.n1][1] * spins[e.n2][1] +
+            spins[e.n1][2] * spins[e.n2][2]
+        ) + Js[2][2] * spins[e.n1][3] * spins[e.n2][3]
+    end
+
+    for i in eachindex(sgraph.first)
+        e = sgraph.first[i]
+        E += Js[1][1] * e.xy + Js[1][2] * e.z
+        for p in sgraph.paths[i]
+            E += (Js[3][1] * e.xy + Js[3][2] * e.z) * (Js[4][1] * p.xy + Js[4][2] * p.z)
+            E += (Js[4][1] * e.xy + Js[4][2] * e.z) * (Js[3][1] * p.xy + Js[3][2] * p.z)
+        end
+    end
+
+    # Checked:
+    # factor 0.5 (overcounting edges)
+    # number of edges (12x a-b-c, 2x (overcounting) 6x c-a-b)
+    # edges/paths for first node correct
+    for ei in eachindex(sgraph.first)
+        e12 = sgraph.first[ei]
+        for e23 in sgraph.nodes[e12.n2].first   # LID: 1 -> 2 -> 1
+            e12 == e23 && continue
+            n3 = e23.n1 != e12.n2 ? e23.n1 : e23.n2
+            E += 0.5g * (
+                spins[e12.n1][1] * spins[e12.n2][1] * spins[n3][2] +
+                spins[e12.n1][1] * spins[e12.n2][2] * spins[n3][1] +
+                spins[e12.n1][2] * spins[e12.n2][1] * spins[n3][1] -
+                spins[e12.n1][2] * spins[e12.n2][2] * spins[n3][2]
+            )
+        end
+        for e23 in sgraph.nodes[e12.n1].first   # LID: 2 -> 1 -> 2
+            e12 == e23 && continue              # overcounting cause 2 <- 1 <- 2
+            n3 = e23.n1 != e12.n1 ? e23.n1 : e23.n2
+            E += 0.5g * (
+                spins[e12.n2][1] * spins[e12.n1][1] * spins[n3][2] +
+                spins[e12.n2][1] * spins[e12.n1][2] * spins[n3][1] +
+                spins[e12.n2][2] * spins[e12.n1][1] * spins[n3][1] -
+                spins[e12.n2][2] * spins[e12.n1][2] * spins[n3][2]
+            )
+        end
+    end
+
+    if !(Tuple(h) == (0., 0., 0.))
+        for S in spins
+            E -= dot(h, S)
+        end
+    end
+
+    E
+end
+
+
+
 ################################################################################
 #### single spin flip kernels
 ################################################################################
@@ -183,6 +248,7 @@ function deltaEnergy(
         h::Point3{Float64}=Point3(0.)       # external field
     )
 
+    # Runtime:
     # xys, zs: 4x 3 multiplication, 4 additions -> (12, 4) (used for NN, paths)
 
     # NN: [12, 4] + (1, 4x 4) = (1, 16) + [12, 4]
@@ -298,6 +364,113 @@ function deltaEnergy(
 
     dE
 end
+
+
+# Energy shift for (Js, h, g)
+function deltaEnergy(
+        #n::SNode,
+        sgraph::SGraph,
+        spins::Vector{Point3{Float64}},
+        i::Int64,
+        new_spin::Point3{Float64},
+        Js::Vector{Tuple{Float64, Float64}},
+        xys::Vector{Float64},
+        zs::Vector{Float64},
+        h::Point3{Float64},
+        g::Float64
+    )
+
+    @inbounds n = sgraph.nodes[i]
+    @inbounds delta_s = new_spin - spins[i]
+
+    # allocations for nearest neighbour
+    xy1 = 0.
+    z1 = 0.
+
+    # allocations for paths
+    xyz3 = 0.
+    xy3 = 0.
+    z3 = 0.
+
+    # Allocation for 3-spin
+    temp = 0.
+
+    # Calculate nearest neighbours and paths
+    for (xy, z, j) in zip(xys, zs, eachindex(n.first))
+        @inbounds e = n.first[j]    # NN edge
+        @fastmath dxy = xy - e.xy   # ΔS_xy
+        @fastmath dz = z - e.z      # ΔS_z
+        @fastmath xy1 += dxy        # xy - e.xy
+        @fastmath z1 += dz          # z - e.z
+        @fastmath temp_xy = 0.
+        @fastmath temp_z = 0.
+
+        for p in n.paths[j]
+            @fastmath temp_xy += p.xy
+            @fastmath temp_z += p.z
+        end
+
+        @fastmath xyz3 += dxy * temp_z + dz * temp_xy
+        @fastmath xy3 += dxy * temp_xy
+        @fastmath z3 += dz * temp_z
+
+        # g/3-spin stuff
+        sj = n.first[j].n1 != i ? n.first[j].n1 : n.first[j].n2
+        dxxyy = delta_s[1] * spins[sj][1] - delta_s[2] * spins[sj][2]
+        dxyyx = delta_s[1] * spins[sj][2] + delta_s[2] * spins[sj][1]
+
+        x = 0.
+        y = 0.
+
+        # second part (x - a - b)
+        for k in 1:4
+            _n = sgraph.nodes[sj]
+            n.first[j] == _n.first[k] && continue
+            sk = _n.first[k].n1 != sj ? _n.first[k].n1 : _n.first[k].n2
+            x += spins[sk][1]
+            y += spins[sk][2]
+        end
+
+        # second part (b - x - a)
+        for k in j+1:4
+            sk = n.first[k].n1 != i ? n.first[k].n1 : n.first[k].n2
+            x += spins[sk][1]
+            y += spins[sk][2]
+        end
+
+        temp += dxxyy * y + dxyyx * x
+    end
+    @fastmath @inbounds dE = begin
+        Js[1][1] * xy1 +
+        Js[1][2] * z1 +
+        2 * (
+            Js[3][1] * Js[4][1] * xy3 +
+            Js[3][2] * Js[4][2] * z3
+        ) + (
+            Js[3][1] * Js[4][2] +
+            Js[3][2] * Js[4][1]
+        ) * xyz3 +
+        g * temp
+    end
+
+
+    # Calculate Next Nearest Neighbor terms
+    xy1 = 0.
+    z1 = 0.
+    for j in n.second
+        @fastmath @inbounds xy1 += delta_s[1] * spins[j][1] + delta_s[2] * spins[j][2]
+        @fastmath @inbounds z1 += delta_s[3] * spins[j][3]
+    end
+    @fastmath @inbounds dE += Js[2][1] * xy1 + Js[2][2] * z1
+
+    # Calculate field term
+    if !(Tuple(h) == (0., 0., 0.))
+        @fastmath @inbounds dE -= dot(h, (new_spin - spins[i]))
+    end
+
+    dE
+end
+
 
 
 ################################################################################
@@ -466,6 +639,67 @@ function kernel(
 end
 
 
+# (Js, h, g)
+function kernel(
+        sgraph::SGraph,
+        spins::Vector{Point3{Float64}},
+        i::Int64,
+        new_spin::Point3{Float64},
+        E_tot::Float64,
+        Js::Vector{Tuple{Float64, Float64}},
+        beta::Float64,
+        h::Point3{Float64},
+        g::Float64
+    )
+
+    @inbounds n = sgraph.nodes[i]
+    xys, zs = generate_scalar_products(sgraph, spins, i, new_spin)
+    dE = deltaEnergy(sgraph, spins, i, new_spin, Js, xys, zs, h, g)
+
+    if dE < 0.
+        @inbounds spins[i] = new_spin
+        update_edges!(n, xys, zs)
+        return E_tot + dE
+    elseif rand() < exp(-dE * beta)
+        @inbounds spins[i] = new_spin
+        update_edges!(n, xys, zs)
+        return E_tot + dE
+    end
+
+    E_tot
+end
+
+
+# (Js, h, g) w/o E updates
+function kernel(
+        sgraph::SGraph,
+        spins::Vector{Point3{Float64}},
+        i::Int64,
+        new_spin::Point3{Float64},
+        Js::Vector{Tuple{Float64, Float64}},
+        beta::Float64,
+        h::Point3{Float64},
+        g::Float64
+    )
+
+    @inbounds n = sgraph.nodes[i]
+    xys, zs = generate_scalar_products(sgraph, spins, i, new_spin)
+    dE = deltaEnergy(sgraph, spins, i, new_spin, Js, xys, zs, h, g)
+
+    if dE < 0.
+        @inbounds spins[i] = new_spin
+        update_edges!(n, xys, zs)
+        return nothing
+    elseif rand() < exp(-dE * beta)
+        @inbounds spins[i] = new_spin
+        update_edges!(n, xys, zs)
+        return nothing
+    end
+
+    nothing
+end
+
+
 ################################################################################
 #### sweep functions
 ################################################################################
@@ -554,11 +788,7 @@ function sweep(
 end
 
 
-################################################################################
-#### 3 spin terms
-################################################################################
-
-
+# (Js, h, g) w/o E update
 function sweep(
         sgraph::SGraph,
         spins::Vector{Point3{Float64}},
@@ -579,36 +809,7 @@ function sweep(
 end
 
 
-# anisotropic Js, returns updated E_tot
-function kernel(
-        sgraph::SGraph,
-        spins::Vector{Point3{Float64}},
-        i::Int64,
-        new_spin::Point3{Float64},
-        Js::Vector{Tuple{Float64, Float64}},
-        beta::Float64,
-        h::Point3{Float64},
-        g::Float64
-    )
-
-    @inbounds n = sgraph.nodes[i]
-    xys, zs = generate_scalar_products(sgraph, spins, i, new_spin)
-    dE = deltaEnergy(sgraph, spins, i, new_spin, Js, xys, zs, h, g)
-
-    if dE < 0.
-        @inbounds spins[i] = new_spin
-        update_edges!(n, xys, zs)
-        return nothing
-    elseif rand() < exp(-dE * beta)
-        @inbounds spins[i] = new_spin
-        update_edges!(n, xys, zs)
-        return nothing
-    end
-
-    nothing
-end
-
-
+# (UJs, h, g) w/ E update
 function sweep(
         sgraph::SGraph,
         spins::Vector{Point3{Float64}},
@@ -628,271 +829,3 @@ function sweep(
 
     E_tot
 end
-
-
-# anisotropic Js, returns updated E_tot
-function kernel(
-        sgraph::SGraph,
-        spins::Vector{Point3{Float64}},
-        i::Int64,
-        new_spin::Point3{Float64},
-        E_tot::Float64,
-        Js::Vector{Tuple{Float64, Float64}},
-        beta::Float64,
-        h::Point3{Float64},
-        g::Float64
-    )
-
-    @inbounds n = sgraph.nodes[i]
-    xys, zs = generate_scalar_products(sgraph, spins, i, new_spin)
-    dE = deltaEnergy(sgraph, spins, i, new_spin, Js, xys, zs, h, g)
-
-    if dE < 0.
-        @inbounds spins[i] = new_spin
-        update_edges!(n, xys, zs)
-        return E_tot + dE
-    elseif rand() < exp(-dE * beta)
-        @inbounds spins[i] = new_spin
-        update_edges!(n, xys, zs)
-        return E_tot + dE
-    end
-
-    E_tot
-end
-
-
-# Energy shift for anisotropic Js
-# Checked vs totalEnergy() for anisotropic J3, J4 (aka K) in reordered 144-term
-# form. Error ~1e-12% (1e-14 as factor)
-function deltaEnergy(
-        #n::SNode,
-        sgraph::SGraph,
-        spins::Vector{Point3{Float64}},
-        i::Int64,
-        new_spin::Point3{Float64},
-        Js::Vector{Tuple{Float64, Float64}},
-        xys::Vector{Float64},
-        zs::Vector{Float64},
-        h::Point3{Float64},
-        g::Float64
-    )
-
-    # xys, zs: 4x 3 multiplication, 4 additions -> (12, 4) (used for NN, paths)
-
-    # NN: [12, 4] + (1, 4x 4) = (1, 16) + [12, 4]
-    # NNN: 12x (3, 3) + (0, 3) = (36, 39)
-    # paths: [12, 4] + 36x (0, 2) + 4x (1, 4) + (2, 0) = (6, 88) + [12, 4]
-    #                                       but [12, 4] is reused from NN
-    # field: (3, 6)
-    # Assuming multiplication is about 4 times as expensive as addition/subtraction
-    # scalar products: 52*
-    # NN: 20 [+ 52]*
-    # NNN: 183
-    # paths: 112 [+ 52]*
-    # field: 18
-    @inbounds n = sgraph.nodes[i]
-    @inbounds delta_s = new_spin - spins[i]
-
-    # allocations for nearest neighbour
-    xy1 = 0.
-    z1 = 0.
-
-    # allocations for paths
-    xyz3 = 0.
-    xy3 = 0.
-    z3 = 0.
-
-    # Allocation for 3-spin
-    temp = 0.
-
-    # Calculate nearest neighbours and paths
-    for (xy, z, j) in zip(xys, zs, eachindex(n.first))
-        @inbounds e = n.first[j]    # NN edge
-        @fastmath dxy = xy - e.xy   # ΔS_xy
-        @fastmath dz = z - e.z      # ΔS_z
-        @fastmath xy1 += dxy        # xy - e.xy
-        @fastmath z1 += dz          # z - e.z
-        @fastmath temp_xy = 0.
-        @fastmath temp_z = 0.
-
-        for p in n.paths[j]
-            @fastmath temp_xy += p.xy
-            @fastmath temp_z += p.z
-        end
-
-        @fastmath xyz3 += dxy * temp_z + dz * temp_xy
-        @fastmath xy3 += dxy * temp_xy
-        @fastmath z3 += dz * temp_z
-
-        # g/3-spin stuff
-        sj = n.first[j].n1 != i ? n.first[j].n1 : n.first[j].n2
-        dxxyy = delta_s[1] * spins[sj][1] - delta_s[2] * spins[sj][2]
-        dxy = delta_s[1] * spins[sj][2]
-        dyx = delta_s[2] * spins[sj][1]
-
-        x1 = 0.
-        x2 = 0.
-        y = 0.
-
-        # second part (x - a - b)
-        for k in 1:4
-            _n = sgraph.nodes[sj]
-            n.first[j] == _n.first[k] && continue
-            sk = _n.first[k].n1 != sj ? _n.first[k].n1 : _n.first[k].n2
-            x1 += spins[sk][1]
-            y += spins[sk][2]
-            # println(i, " --> ", sj, " --> ", sk)
-        end
-        # x *= 2
-        # y *= 2
-
-        # second part (b - x - a)
-        for k in j+1:4
-            # j == k && continue
-            sk = n.first[k].n1 != i ? n.first[k].n1 : n.first[k].n2
-            x2 += spins[sk][1]
-            y += spins[sk][2]
-            # println(i, " --> ", sj, " --> ", sk)
-        end
-
-        # x2 * dyx == y2 * dxx over the summation
-        # temp += dxxyy * y + (dxy + dyx) * x1 + x2 * dyx
-        temp += dxxyy * y + (dxy + dyx) * (x1 + x2)
-    end
-    @fastmath @inbounds dE = begin
-        Js[1][1] * xy1 +
-        Js[1][2] * z1 +
-        2 * (
-            Js[3][1] * Js[4][1] * xy3 +
-            Js[3][2] * Js[4][2] * z3
-        ) + (
-            Js[3][1] * Js[4][2] +
-            Js[3][2] * Js[4][1]
-        ) * xyz3 +
-        g * temp
-    end
-
-
-    # Calculate Next Nearest Neighbor terms
-    xy1 = 0.
-    z1 = 0.
-    for j in n.second
-        @fastmath @inbounds xy1 += delta_s[1] * spins[j][1] + delta_s[2] * spins[j][2]
-        @fastmath @inbounds z1 += delta_s[3] * spins[j][3]
-    end
-    @fastmath @inbounds dE += Js[2][1] * xy1 + Js[2][2] * z1
-
-    # Calculate field term
-    if !(Tuple(h) == (0., 0., 0.))
-        @fastmath @inbounds dE -= dot(h, (new_spin - spins[i]))
-    end
-
-    dE
-end
-
-
-function totalEnergy(
-        sgraph::SGraph,
-        spins::Vector{Point3{Float64}},
-        Js::Vector{Tuple{Float64, Float64}},
-        h::Point3{Float64},
-        g::Float64
-    )
-
-    E = 0.
-    for e in sgraph.second
-        E += Js[2][1] * (
-            spins[e.n1][1] * spins[e.n2][1] +
-            spins[e.n1][2] * spins[e.n2][2]
-        ) + Js[2][2] * spins[e.n1][3] * spins[e.n2][3]
-    end
-
-    for i in eachindex(sgraph.first)
-        e = sgraph.first[i]
-        E += Js[1][1] * e.xy + Js[1][2] * e.z
-        for p in sgraph.paths[i]
-            E += (Js[3][1] * e.xy + Js[3][2] * e.z) * (Js[4][1] * p.xy + Js[4][2] * p.z)
-            E += (Js[4][1] * e.xy + Js[4][2] * e.z) * (Js[3][1] * p.xy + Js[3][2] * p.z)
-        end
-    end
-
-    # Checked:
-    # factor 0.5 (overcounting edges)
-    # number of edges (12x a-b-c, 2x (overcounting) 6x c-a-b)
-    # edges/paths for first node correct
-    for ei in eachindex(sgraph.first)
-        e12 = sgraph.first[ei]
-        for e23 in sgraph.nodes[e12.n2].first   # LID: 1 -> 2 -> 1
-            e12 == e23 && continue
-            n3 = e23.n1 != e12.n2 ? e23.n1 : e23.n2
-            # println(e12.n1, " --> ", e12.n2, " --> ", n3)
-            E += 0.5g * (
-                spins[e12.n1][1] * spins[e12.n2][1] * spins[n3][2] +
-                spins[e12.n1][1] * spins[e12.n2][2] * spins[n3][1] +
-                spins[e12.n1][2] * spins[e12.n2][1] * spins[n3][1] -
-                spins[e12.n1][2] * spins[e12.n2][2] * spins[n3][2]
-            )
-        end
-        for e23 in sgraph.nodes[e12.n1].first   # LID: 2 -> 1 -> 2
-            e12 == e23 && continue              # overcounting cause 2 <- 1 <- 2
-            n3 = e23.n1 != e12.n1 ? e23.n1 : e23.n2
-            # println(e12.n1, " --> ", e12.n2, " --> ", n3)
-            E += 0.5g * (
-                spins[e12.n2][1] * spins[e12.n1][1] * spins[n3][2] +
-                spins[e12.n2][1] * spins[e12.n1][2] * spins[n3][1] +
-                spins[e12.n2][2] * spins[e12.n1][1] * spins[n3][1] -
-                spins[e12.n2][2] * spins[e12.n1][2] * spins[n3][2]
-            )
-        end
-    end
-
-    if !(Tuple(h) == (0., 0., 0.))
-        for S in spins
-            E -= dot(h, S)
-        end
-    end
-
-    E
-end
-
-
-
-#=
-(SxSxSy+SxSySx+SySxSx-SySySy)
-# 4 * (4, 2) + 4 * 2 * 3 * (0, 4) + (1, 0) = (17, 104) -> 176
-# also 4 + 4*16 comparisons -> +68 -> 244
-temp = 0.
-for j in 1:4
-    si = n.first[j].n1 != i ? n.first[j].n1 : n.first[j].n2
-
-    # first part of the path (x - a)
-    # xx = delta_s[1] * spins[si][1]
-    # xy = delta_s[1] * spins[si][2]
-    # yx = delta_s[2] * spins[si][1]
-    # yy = delta_s[2] * spins[si][2]
-    xxyy = xys[j]
-    xyyx = delta_s[1] * spins[si][2] + delta_s[2] * spins[si][1]
-
-    x = 0.
-    y = 0.
-    # second part (b - x - a)
-    for k in 1:4
-        i == k && continue
-        sj = n.first[k].n1 != i ? n.first[k].n1 : n.first[k].n2
-        x += spins[sj][1]
-        y += spins[sj][2]
-    end
-
-    # second part (x - a - b)
-    for k in 1:4
-        si == k && continue
-        _n = sgraph.nodes[si] # <---------------- not available
-        sj = _n.first[k].n1 != i ? _n.first[k].n1 : _n.first[k].n2
-        x += spins[sj][1]
-        y += spins[sj][2]
-    end
-
-    temp += xxyy * y + xyyx * x     # xx*y + yy*y + xy*x + yx*x
-end
-temp *= g
-=#
