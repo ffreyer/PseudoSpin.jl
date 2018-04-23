@@ -389,7 +389,7 @@ efficient in practise.
 function rand_spin()
     phi = 2 * pi * rand(Float64)
     ct = 2 * rand(Float64) - 1
-    st = sqrt(max(0., 1. - ct*ct)) #sin(acos(ct))
+    st = sqrt(1. - ct*ct) #sin(acos(ct)) # max(0., )
 
     Point3{Float64}(
         st * cos(phi),
@@ -401,7 +401,7 @@ end
 function rand_spin(N::Int64)
     phis = 2 * pi * rand(Float64, N)
     cts = 2 * rand(Float64, N) - 1
-    sts = sqrt.(max.(0., 1. - cts .* cts)) # sin(acos(cts))
+    sts = sqrt.(1. - cts .* cts) # sin(acos(cts)) # max(0., )
 
     [Point3{Float64}(
         sts[i] .* cos.(phis[i]),
