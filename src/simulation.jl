@@ -628,7 +628,7 @@ function measure!(
     Dimer_z = BinnerA(200)
     Dimer_z_var = BinnerA(200)
 
-    additional_observables = true
+    # additional_observables = true
     Nhalf = div(sgraph.N_nodes, 2)
     @inline @inbounds flip1(i::Int64, s::Point3{Float64}) = i <= Nhalf ? s : [-s[1], -s[2], s[3]]
     @inline flip2(i::Int64, s::Point3{Float64}) = i <= Nhalf ? s : -s
@@ -719,31 +719,31 @@ function measure!(
         @inbounds push!(Dimer_z_var, Dz_var)
 
 
-        if additional_observables
-            _spins = map(t -> flip(t...), enumerate(spins))
-            S = sum(_spins) * invN
-            srMx += S[1]
-            srMy += S[2]
-            srMz += S[3]
+        # if additional_observables
+        _spins = map(t -> flip(t...), enumerate(spins))
+        S = sum(_spins) * invN
+        srMx += S[1]
+        srMy += S[2]
+        srMz += S[3]
 
-            vars = mapreduce(s -> (s - S).^2, +, _spins) * invN
-            srdMx += vars[1]
-            srdMy += vars[2]
-            srdMz += vars[3]
+        vars = mapreduce(s -> (s - S).^2, +, _spins) * invN
+        srdMx += vars[1]
+        srdMy += vars[2]
+        srdMz += vars[3]
 
-            srM2xy += sqrt(S[1]^2 + S[2]^2)
-            srdM2xy += sqrt(vars[1]^2 + vars[2]^2)
+        srM2xy += sqrt(S[1]^2 + S[2]^2)
+        srdM2xy += sqrt(vars[1]^2 + vars[2]^2)
 
-            S = mapreduce(v -> abs.(v), +, _spins) * invN
-            srMxabs += S[1]
-            srMyabs += S[2]
-            srMzabs += S[3]
+        S = mapreduce(v -> abs.(v), +, _spins) * invN
+        srMxabs += S[1]
+        srMyabs += S[2]
+        srMzabs += S[3]
 
-            vars = mapreduce(s -> (abs.(s) - S).^2, +, _spins) * invN
-            srdMxabs += vars[1]
-            srdMyabs += vars[2]
-            srdMzabs += vars[3]
-        end
+        vars = mapreduce(s -> (abs.(s) - S).^2, +, _spins) * invN
+        srdMxabs += vars[1]
+        srdMyabs += vars[2]
+        srdMzabs += vars[3]
+        # end
         yield()
     end
     # This formula is wrong for k =/= 1
@@ -776,15 +776,16 @@ function measure!(
     write_BA!(file, Dimer_z, "Dz   ")
     write_BA!(file, Dimer_z_var, "DzV  ")
 
-    if additional_observables
-        write_JK!(file, srMx * invN, srdMx * invN, "rMx  ")
-        write_JK!(file, srMy * invN, srdMy * invN, "rMy  ")
-        write_JK!(file, srMz * invN, srdMz * invN, "rMz  ")
-        write_JK!(file, srMxabs * invN, srdMxabs * invN, "rMxa ")
-        write_JK!(file, srMyabs * invN, srdMyabs * invN, "rMya ")
-        write_JK!(file, srMzabs * invN, srdMzabs * invN, "rMza ")
-        write_JK!(file, srM2xy * invN, srdM2xy * invN, "rMxy ")
-    end
+    #if additional_observables
+    K = 1. / N_sweeps
+    write_JK!(file, srMx * K, srdMx * K, "rMx  ")
+    write_JK!(file, srMy * K, srdMy * K, "rMy  ")
+    write_JK!(file, srMz * K, srdMz * K, "rMz  ")
+    write_JK!(file, srMxabs * K, srdMxabs * K, "rMxa ")
+    write_JK!(file, srMyabs * K, srdMyabs * K, "rMya ")
+    write_JK!(file, srMzabs * K, srdMzabs * K, "rMza ")
+    write_JK!(file, srM2xy * K, srdM2xy * K, "rMxy ")
+    # end
 
     write_JK!(file, cv, dcv, "cV   ")
     write_JK!(file, dcvdT, ddcvdT, "dcVdT")
