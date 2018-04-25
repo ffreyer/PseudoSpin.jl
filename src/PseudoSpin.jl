@@ -37,7 +37,7 @@ import Base.push!, Base.var
 
 # Files used in simulation
 include("Crystal.jl")
-export sc, bcc, fcc, diamond
+export sc, bcc, fcc, diamond, combine
 
 
 include("RGraph.jl")
