@@ -718,11 +718,7 @@ function sweep(
         rand_spin(sgraph.N_nodes)
     )
 
-    if g == 0.
-        for (i, new_spin) in zipped
-            E_tot = kernel(sgraph, spins, i, new_spin, E_tot, Js, beta, h)
-        end
-    elseif Js[3] == (0., 0.)
+    if Js[3] == (0., 0.)
         for (i, new_spin) in zipped
             E_tot = kernel_no_paths(sgraph, spins, i, new_spin, E_tot, Js, beta, h, g)
         end
@@ -750,11 +746,7 @@ function sweep(
         rand_spin(sgraph.N_nodes)
     )
 
-    if g == 0.
-        for (i, new_spin) in zipped
-            kernel(sgraph, spins, i, new_spin, Js, beta, h)
-        end
-    elseif Js[3] == (0., 0.)
+    if Js[3] == (0., 0.)
         for (i, new_spin) in zipped
             kernel_no_paths(sgraph, spins, i, new_spin, Js, beta, h, g)
         end
