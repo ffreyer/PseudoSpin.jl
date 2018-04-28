@@ -55,7 +55,8 @@ export totalEnergy, deltaEnergy
 export kernel, sweep
 
 
-include("simulation.jl")
+include("simulation.jl")    # TODO rename this
+include("Measure.jl")       # TODO name this simulation.jl... probably
 export Freezer, ConstantT, cool_to
 export BinnerA, var, tau
 export BinnerH, jackknife
