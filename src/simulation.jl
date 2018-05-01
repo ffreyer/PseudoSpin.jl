@@ -433,8 +433,8 @@ function write_header!(
         K_edges::Int64,
         Js::Vector{Tuple{Float64, Float64}},
         h::Point3{Float64},
-        T::Float64,
-        g::Float64
+        g::Float64,
+        T::Float64
     )
 
     write(file, "V03")
