@@ -32,7 +32,7 @@ const Vec3f0 = Vec{3, Float32}
 # I'm implementing new methods for these functions
 import Base.*, Base.==, Base.in, Base.findfirst#, Base.show
 import Base.start, Base.next, Base.length, Base.done, Base.eltype
-import Base.push!, Base.var
+import Base.push!, Base.mean, Base.var
 
 
 # Files used in simulation
@@ -58,7 +58,7 @@ export kernel, sweep
 include("simulation.jl")    # TODO rename this
 include("Measure.jl")       # TODO name this simulation.jl... probably
 export Freezer, ConstantT, cool_to
-export BinnerA, var, tau
+export BinnerA, mean, var, tau
 export BinnerH, jackknife
 export measure!, simulate!
 

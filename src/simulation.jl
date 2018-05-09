@@ -286,16 +286,30 @@ end
 # This definition is more practical for the binning analysis and error
 # calculation since we need the standard error sqrt(Var(x) / N)
 """
-    var(BinningAnalysis, lvl)
+    var(BinningAnalysis[, lvl])
 
 Calculates the **variance/N** of a given level in the Binning Analysis.
 """
-function var(B::BinnerA, lvl::Int64)
+function var(B::BinnerA, lvl::Int64=1_000_000)
     # The upper most lvl needs to be calculated explicitly
     if lvl < length(B.count)
         return ((B.x2_sum[lvl+1] / B.count[lvl+1]) - (B.x_sum[lvl+1] / B.count[lvl+1])^2) / (B.count[lvl+1] - 1)
     else
         return ((sum(B.output[1:B.i-1].^2) / (B.i-1)) - (sum(B.output[1:B.i-1]) / (B.i-1))^2) / (B.i - 2)
+    end
+end
+
+
+"""
+    mean(BinningAnalysis[, lvl])
+
+Calculates the mean for a given level in the Binning Analysis
+"""
+function mean(B::BinnerA, lvl::Int64=1_000_000)
+    if lvl < length(B.count)
+        return B.x_sum[lvl] / B.count[lvl]
+    else
+        return mean(B.output[1:B.i-1])
     end
 end
 
@@ -482,7 +496,7 @@ function write_BA!(file::IOStream, B::BinnerA, ID::String)
     for x in B.x_sum
         write(file, x)
     end
-    write(file, sum(B.output))
+    write(file, mean(B))
 
     # variances
     for lvl in 0:length(B.compressors)

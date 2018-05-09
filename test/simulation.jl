@@ -20,13 +20,16 @@ sim, _, _ = Basisfill(r, 3)
 end
 
 @testset "Checking Binning Analysis" begin
-    values = rand(1000)
+    N = 1024
+    values = rand(N)
     BA = BinnerA(10)
     for v in values
         push!(BA, v)
     end
-    @test mean(BA.output) ≈ mean(values)
-    @test var(BA) ≈ var(values)
+    @test BA.count[1] == N
+    @test mean(BA) ≈ mean(values)
+    # @test isapprox(var(BA, 1), var(values) / N, rtol=0.05abs(var(values))) 
+    @test var(BA) != var(values) / N
 end
 
 @testset "Checking Freezer" begin
