@@ -19,6 +19,23 @@ sim, _, _ = Basisfill(r, 3)
 
 end
 
+@testset "Checking Binning Analysis" begin
+    values = rand(1000)
+    BA = BinnerA(10)
+    for v in values
+        push!(BA, v)
+    end
+    @test mean(BA.output) ≈ mean(values)
+    @test var(BA) ≈ var(values)
+end
+
+@testset "Checking Freezer" begin
+    f1 = Freezer(200, 2.5, N_switch=50)
+    for beta in cool_to(f1, 1.0)
+        @test (1/2.500001 <= beta <= 1.000001)
+    end
+end
+
 spins = rand_spin(sim.N_nodes)
 ps.init_edges!(sim, spins)
 Js = [(0.0, 0.0), (0.0, 0.0), (0.0, 0.0), (0.0, 0.0)]

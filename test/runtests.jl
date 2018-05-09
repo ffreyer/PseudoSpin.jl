@@ -19,16 +19,5 @@ include("simulation.jl")
 
 ARGS = ["parameters/test.param"]
 println("Attempting simulation with 20k + 80k sweeps. Runtime: (estimate: ~4min)")
-@time include("mainf.jl")
-rm("output/full_test.part")
-
-# @test begin
-#     # ...
-#     true
-# end
-#
-#
-# @testset "name" begin
-#     @test f(1) = 1
-#     @test f(10) = 10
-# end
+# @time include("mainf.jl")
+# rm("output/full_test.part")
