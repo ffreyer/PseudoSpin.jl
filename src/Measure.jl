@@ -146,6 +146,11 @@ function measure!(
         # end
         yield()
     end
+    E_check = totalEnergy(sgraph, spins, Js, h, g)
+    if !(E_tot ≈ E_check)
+        warn("E_tot diverged by ", (E_check - E_tot) / E_check)
+    end
+
     # This formula is wrong for k =/= 1
     f(x, x2, x3) = (
         (x3 - 3*x*x2 + 2*x^3) * beta^4 * sgraph.N_nodes -
@@ -339,6 +344,11 @@ function measure_no_paths!(
         # end
         yield()
     end
+    E_check = totalEnergy(sgraph, spins, Js, h, g)
+    if !(E_tot ≈ E_check)
+        warn("E_tot diverged by ", (E_check - E_tot) / E_check)
+    end
+
     # This formula is wrong for k =/= 1
     f(x, x2, x3) = (
         (x3 - 3*x*x2 + 2*x^3) * beta^4 * sgraph.N_nodes -
@@ -535,6 +545,11 @@ function measure!(
         # end
         yield()
     end
+    E_check = totalEnergy(sgraph, spins, Js, h, g)
+    if !(E_tot ≈ E_check)
+        warn("E_tot diverged by ", (E_check - E_tot) / E_check)
+    end
+
     # This formula is wrong for k =/= 1
     f(x, x2, x3) = (
         (x3 - 3*x*x2 + 2*x^3) * beta^4 * sgraph.N_nodes -
@@ -691,12 +706,12 @@ function simulate!(
 
     write_header!(
         file, 1, length(TH_method), TH_method.T_max, ME_sweeps, sys_size,
-        Int64(sgraph.N_nodes), sgraph.K_edges, Js, h, g, T
+        Int64(sgraph.N_nodes), sgraph.K_edges, Js, h, g, T #TODO: order: g, T
     )
 
     # Thermalization
     init_edges!(sgraph, spins)
-    on_g_branch = g != 0.
+    # on_g_branch = g != 0.
     if T > 0.0
         if g == 0.0
             thermalize!(sgraph, spins, T, Js, TH_method, h)
@@ -708,6 +723,7 @@ function simulate!(
 
         beta = 1. / T
     else
+        warn("Thermalization skipped, measurement extended.")
         ME_sweeps += length(TH_method)
         beta = -1.0
     end
