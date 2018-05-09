@@ -496,7 +496,7 @@ function write_BA!(file::IOStream, B::BinnerA, ID::String)
     for x in B.x_sum
         write(file, x)
     end
-    write(file, mean(B))
+    write(file, sum(B.x_sum[1:B.i-1]))
 
     # variances
     for lvl in 0:length(B.compressors)

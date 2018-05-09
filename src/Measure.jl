@@ -18,6 +18,13 @@ function measure!(
         g::Float64
     )
 
+    # println("measure all...")  # NOTE
+    # println("\t T = ", 1./beta)
+    # println("\t Js = ", Js)
+    # println("\t h = ", h)
+    # println("\t g = ", g)
+    # println("\t #messure = ", N_sweeps)
+
     const invN = 1. / sgraph.N_nodes
 
     E_BA = BinnerA(200)
@@ -214,6 +221,13 @@ function measure_no_paths!(
         h::Point3{Float64},
         g::Float64
     )
+
+    # println("measure no paths...")  # NOTE
+    # println("\t T = ", 1./beta)
+    # println("\t Js = ", Js)
+    # println("\t h = ", h)
+    # println("\t g = ", g)
+    # println("\t #messure = ", N_sweeps)
 
     const invN = 1. / sgraph.N_nodes
 
@@ -412,6 +426,12 @@ function measure!(
         h::Point3{Float64}
     )
 
+    # println("measure no g...")  # NOTE
+    # println("\t T = ", 1./beta)
+    # println("\t Js = ", Js)
+    # println("\t h = ", h)
+    # println("\t #messure = ", N_sweeps)
+
     zeroT = beta < 0.0
     const invN = 1. / sgraph.N_nodes
 
@@ -545,7 +565,7 @@ function measure!(
         # end
         yield()
     end
-    E_check = totalEnergy(sgraph, spins, Js, h, g)
+    E_check = totalEnergy(sgraph, spins, Js, h)
     if !(E_tot ≈ E_check)
         warn("E_tot diverged by ", (E_check - E_tot) / E_check)
     end
@@ -687,6 +707,14 @@ function simulate!(
         h::Point3{Float64}=Point3(0.),
         g::Float64 = 0.
     )
+
+    println("Simulate...")
+    println("\t #therm = ", length(TH_method)) # NOTE
+    println("\t T = ", T)
+    println("\t Js = ", Js)
+    println("\t g = ", g)
+    println("\t h = ", h)
+    println("\t #messure = ", ME_sweeps)
 
 
     # Fool-proof? file creation that was actually not fool-proof

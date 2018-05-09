@@ -33,6 +33,10 @@ function totalEnergy(
         Js::Vector{Tuple{Float64, Float64}},
         h::Point3{Float64}=Point3(0.)
     )
+    # println("totalEnergy w/o g...")  # NOTE
+    # println("\t Js = ", Js)
+    # println("\t h = ", h)
+
 
     E = 0.
     for e in sgraph.second
@@ -72,6 +76,11 @@ function totalEnergy(
         h::Point3{Float64},
         g::Float64
     )
+    # println("totalEnergy w/ g...")  # NOTE
+    # println("\t Js = ", Js)
+    # println("\t h = ", h)
+    # println("\t g = ", g)
+
 
     E = 0.
     for e in sgraph.second
