@@ -12,6 +12,7 @@ __precompile__(true)
 
 
 # Small FixedSizeArrays, e.g. 3-component vectors, outperform Julia Arrays.
+import MPI
 try
     using FixedSizeArrays
 catch e
@@ -56,6 +57,7 @@ export kernel, sweep
 
 # Simulated Annealing, Binning Analysis, Jackknife, histograms
 include("DataAnalysis.jl")
+export parallel_tempering
 export Freezer, ConstantT, cool_to
 export BinnerA, mean, var, tau
 export BinnerH, jackknife
@@ -70,7 +72,7 @@ export measure!, measure_no_paths!
 
 # full simulation (parameters, thermalization)
 include("Simulation.jl")
-export thermalize!, thermalize_no_paths!, imulate!
+export thermalize!, thermalize_no_paths!, simulate!
 
 
 #=

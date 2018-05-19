@@ -1,9 +1,3 @@
-
-
-
-################################################################################
-
-
 function thermalize!(
         sgraph::SGraph,
         spins::Vector{Point3{Float64}},
@@ -11,12 +5,32 @@ function thermalize!(
         Js::Vector{Tuple{Float64, Float64}},
         TH_method::Freezer,
         h::Point3{Float64},
-        g::Float64
+        g::Float64,
+        do_pt::Bool = false,
+        batch_size::Int64 = 1000
     )
     init_edges!(sgraph, spins)
-    for beta in cool_to(TH_method, T)
-        sweep(sgraph, spins, Js, beta, h, g)
-        yield()
+    if do_pt
+        i = 0       # count against batch_size
+        switch = 0  # switch between forward and backward propagation
+        E_tot = totalEnergy(sgraph, spins, Js, h)
+
+        for beta in cool_to(TH_method, T)
+            E_tot = sweep(sgraph, spins, E_tot, Js, beta, h, g)
+            i += 1
+
+            # parallel tempering step
+            if i % batch_size == 0
+                E_tot = parallel_tempering!(spins, E_tot, beta, switch)
+                switch = 1 - switch
+            end
+            yield()
+        end
+    else
+        for beta in cool_to(TH_method, T)
+            sweep(sgraph, spins, Js, beta, h, g)
+            yield()
+        end
     end
     nothing
 end
@@ -29,12 +43,32 @@ function thermalize_no_paths!(
         Js::Vector{Tuple{Float64, Float64}},
         TH_method::Freezer,
         h::Point3{Float64},
-        g::Float64
+        g::Float64,
+        do_pt::Bool = false,
+        batch_size::Int64 = 1000
     )
     init_edges!(sgraph, spins)
-    for beta in cool_to(TH_method, T)
-        sweep_no_paths(sgraph, spins, Js, beta, h, g)
-        yield()
+    if do_pt
+        i = 0       # count against batch_size
+        switch = 0  # switch between forward and backward propagation
+        E_tot = totalEnergy(sgraph, spins, Js, h)
+
+        for beta in cool_to(TH_method, T)
+            E_tot = sweep_no_paths(sgraph, spins, E_tot, Js, beta, h, g)
+            i += 1
+
+            # parallel tempering step
+            if i % batch_size == 0
+                E_tot = parallel_tempering!(spins, E_tot, beta, switch)
+                switch = 1 - switch
+            end
+            yield()
+        end
+    else
+        for beta in cool_to(TH_method, T)
+            sweep_no_paths(sgraph, spins, Js, beta, h, g)
+            yield()
+        end
     end
     nothing
 end
@@ -46,12 +80,32 @@ function thermalize!(
         T::Float64,
         Js::Vector{Tuple{Float64, Float64}},
         TH_method::Freezer,
-        h::Point3{Float64}
+        h::Point3{Float64},
+        do_pt::Bool = false,
+        batch_size::Int64 = 1000
     )
     init_edges!(sgraph, spins)
-    for beta in cool_to(TH_method, T)
-        sweep(sgraph, spins, Js, beta, h)
-        yield()
+    if do_pt
+        i = 0       # count against batch_size
+        switch = 0  # switch between forward and backward propagation
+        E_tot = totalEnergy(sgraph, spins, Js, h)
+
+        for beta in cool_to(TH_method, T)
+            E_tot = sweep(sgraph, spins, E_tot, Js, beta, h)
+            i += 1
+
+            # parallel tempering step
+            if i % batch_size == 0
+                E_tot = parallel_tempering!(spins, E_tot, beta, switch)
+                switch = 1 - switch
+            end
+            yield()
+        end
+    else
+        for beta in cool_to(TH_method, T)
+            sweep(sgraph, spins, Js, beta, h)
+            yield()
+        end
     end
     nothing
 end
@@ -82,7 +136,9 @@ function simulate!(
         TH_method::Freezer,
         ME_sweeps::Int64,
         h::Point3{Float64}=Point3(0.),
-        g::Float64 = 0.
+        g::Float64 = 0.,
+        do_pt::Bool = false,
+        batch_size::Int64 = 1000
     )
 
     # println("Simulate...")
@@ -93,6 +149,7 @@ function simulate!(
     # println("\t h = ", h)
     # println("\t #messure = ", ME_sweeps)
 
+    do_pt && MPI.Init()
 
     # Fool-proof? file creation that was actually not fool-proof
     if !isdir(path)
@@ -119,11 +176,15 @@ function simulate!(
     # on_g_branch = g != 0.
     if T > 0.0
         if g == 0.0
-            thermalize!(sgraph, spins, T, Js, TH_method, h)
+            thermalize!(sgraph, spins, T, Js, TH_method, h, do_pt, batch_size)
         elseif (Js[3][1] == Js[3][2] == 0.0) || (Js[4][1] == Js[4][2] == 0.0)
-            thermalize_no_paths!(sgraph, spins, T, Js, TH_method, h, g)
+            thermalize_no_paths!(
+                sgraph, spins, T, Js, TH_method, h, g, do_pt, batch_size
+            )
         else
-            thermalize!(sgraph, spins, T, Js, TH_method, h, g)
+            thermalize!(
+                sgraph, spins, T, Js, TH_method, h, g, do_pt, batch_size
+            )
         end
 
         beta = 1. / T
@@ -135,17 +196,22 @@ function simulate!(
 
     # Measurement
     if g == 0.0
-        measure!(sgraph, spins, beta, Js, file, ME_sweeps, h)
+        measure!(sgraph, spins, beta, Js, file, ME_sweeps, h, do_pt, batch_size)
     elseif (Js[3][1] == Js[3][2] == 0.0) || (Js[4][1] == Js[4][2] == 0.0)
-        measure_no_paths!(sgraph, spins, beta, Js, file, ME_sweeps, h, g)
+        measure_no_paths!(
+            sgraph, spins, beta, Js, file, ME_sweeps, h, g, do_pt, batch_size
+        )
     else
-        measure!(sgraph, spins, beta, Js, file, ME_sweeps, h, g)
+        measure!(
+            sgraph, spins, beta, Js, file, ME_sweeps, h, g, do_pt, batch_size
+        )
     end
+
     close(file)
+    do_pt && MPI.Finalize()
 
     nothing
 end
-
 
 
 function simulate!(
@@ -159,16 +225,18 @@ function simulate!(
         TH_method::Union{ConstantT, Freezer},
         ME_sweeps::Int64,
         h::Point3{Float64}=Point3(0.),
-        g::Float64 = 0.
+        g::Float64 = 0.,
+        do_parallel_tempering::Bool = false,
+        batch_size::Int64 = 1000
     )
-
 
     for (i, T) in enumerate(Ts)
         simulate!(
             sgraph, spins, sys_size,
             path, filename * string(i),
             T, Js,
-            TH_method, ME_sweeps, h, g
+            TH_method, ME_sweeps, h, g,
+            do_parallel_tempering, batch_size
         )
     end
 
@@ -261,37 +329,21 @@ function simulate!(;
         end
     end
 
-    if do_parallel_tempering
-        simulate_PT!(
-            sim,
-            spins,
-            L,
-            path * folder,
-            filename,
-            Ts,
-            # Ts,
-            Js,
-            Freezer(TH_sweeps, Freeze_temperature, N_switch=N_switch),
-            ME_sweeps,
-            h,
-            g,
-            batch_size
-        )
-    else
-        simulate!(
-            sim,
-            spins,
-            L,
-            path * folder,
-            filename,
-            length(Ts) == 1 ? T : Ts,
-            # Ts,
-            Js,
-            Freezer(TH_sweeps, Freeze_temperature, N_switch=N_switch),
-            ME_sweeps,
-            h,
-            g
-        )
+    simulate!(
+        sim,
+        spins,
+        L,
+        path * folder,
+        filename,
+        length(Ts) == 1 ? T : Ts,
+        Js,
+        Freezer(TH_sweeps, Freeze_temperature, N_switch=N_switch),
+        ME_sweeps,
+        h,
+        g,
+        do_parallel_tempering,
+        batch_size
+    )
 
     nothing
 end

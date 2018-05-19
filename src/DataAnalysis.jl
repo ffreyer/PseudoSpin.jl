@@ -1,3 +1,82 @@
+"""
+    parallel_tempering!(
+        spins::Vector{Point3{Float64}},
+        E_tot::Float64,
+        beta::Float64,
+        switch::Int64
+    )
+
+Neat?
+"""
+function parallel_tempering!(
+        spins::Vector{Point3{Float64}},
+        E_tot::Float64,
+        beta::Float64,
+        switch::Int64
+    )
+
+    comm = MPI.COMM_WORLD
+    rank = MPI.Comm_rank(comm)
+    comm_size = MPI.Comm_size(comm)
+
+    if (switch + rank) % 2 == 0
+        comm_with = rank + 1
+
+        if comm_with < comm_size
+            E_tot1 = [E_tot]
+            E_tot2 = [0.0]
+            MPI.Recv!(E_tot2, comm_with, 0, comm)
+            beta1 = [beta]
+            beta2 = [0.0]
+            MPI.Recv!(beta2, comm_with, 1, comm)
+
+            @fastmath @inbounds dEdT = (E_tot2[1] - E_tot1[1]) *
+                (beta2[1] - beta1[1])
+            if dEdT > 0.0
+                do_swap = true
+            elseif exp(dEdT) > rand()
+                do_swap = true
+            else
+                do_swap = false
+            end
+            MPI.Send([do_swap], comm_with, 2, comm)
+
+            if do_swap
+                new_spins = typeof(spins)(length(spins))
+                MPI.Recv!(new_spins, comm_with, 3, comm)
+                MPI.Send(spins, comm_with, 4, comm)
+                MPI.Send(E_tot, comm_with, 5, comm)
+                spins = new_spins
+                @inbounds E_tot = E_tot2[1]
+            end
+        end
+    else
+        comm_with = rank - 1
+
+        if comm_with >= 1
+            MPI.Send([E_tot], comm_with, 0, comm)
+            MPI.Send([beta], comm_with, 1, comm)
+
+            do_swap = [false]
+            MPI.Recv!(do_swap, comm_with, 2, comm)
+
+            if do_swap[1]
+                new_spins = typeof(spins)(length(spins))
+                E_tot2 = [0.0]
+                MPI.Send(spins, comm_with, 3, comm)
+                MPI.Recv!(new_spins, comm_with, 4, comm)
+                MPI.Recv!(E_tot2, comm_with, 5, comm)
+                @inbounds E_tot = E_tot2[1]
+                spins = new_spins
+            end
+        end
+    end
+
+    MPI.Barrier(comm)
+    return E_tot
+end
+
+
 type Freezer
     sin_values::Vector{Float64}
     exp_values::Vector{Float64}

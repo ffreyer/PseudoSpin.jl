@@ -15,7 +15,9 @@ function measure!(
         file::IOStream,
         N_sweeps::Int64,
         h::Point3{Float64},
-        g::Float64
+        g::Float64,
+        do_pt::Bool,
+        batch_size::Int64
     )
 
     # println("measure all...")  # NOTE
@@ -92,6 +94,7 @@ function measure!(
     srdM2z = 0.0
 
     E_tot = totalEnergy(sgraph, spins, Js, h, g)
+    switch = 1
 
     for i in 1:N_sweeps
         E_tot = sweep(sgraph, spins, E_tot, Js, beta, h, g)
@@ -153,6 +156,12 @@ function measure!(
         srdMyabs += vars[2]
         srdMzabs += vars[3]
         # end
+
+        if do_pt
+            E_tot = parallel_tempering!(spins, E_tot, beta, switch)
+            switch = 1 - switch
+        end
+
         yield()
     end
     E_check = totalEnergy(sgraph, spins, Js, h, g)
@@ -221,7 +230,9 @@ function measure_no_paths!(
         file::IOStream,
         N_sweeps::Int64,
         h::Point3{Float64},
-        g::Float64
+        g::Float64,
+        do_pt::Bool,
+        batch_size::Int64
     )
 
     # println("measure no paths...")  # NOTE
@@ -296,6 +307,7 @@ function measure_no_paths!(
     srdM2z = 0.0
 
     E_tot = totalEnergy(sgraph, spins, Js, h, g)
+    switch = 1
 
     for i in 1:N_sweeps
         E_tot = sweep_no_paths(sgraph, spins, E_tot, Js, beta, h, g)
@@ -358,6 +370,12 @@ function measure_no_paths!(
         srdMyabs += vars[2]
         srdMzabs += vars[3]
         # end
+
+        if do_pt
+            E_tot = parallel_tempering!(spins, E_tot, beta, switch)
+            switch = 1 - switch
+        end
+
         yield()
     end
     E_check = totalEnergy(sgraph, spins, Js, h, g)
@@ -425,7 +443,9 @@ function measure!(
         Js::Vector{Tuple{Float64, Float64}},
         file::IOStream,
         N_sweeps::Int64,
-        h::Point3{Float64}
+        h::Point3{Float64},
+        do_pt::Bool,
+        batch_size::Int64
     )
 
     # println("measure no g...")  # NOTE
@@ -500,6 +520,7 @@ function measure!(
     srdM2z = 0.0
 
     E_tot = totalEnergy(sgraph, spins, Js, h)
+    switch = 1
 
     for i in 1:N_sweeps
         if zeroT
@@ -565,6 +586,12 @@ function measure!(
         srdMyabs += vars[2]
         srdMzabs += vars[3]
         # end
+
+        if do_pt
+            E_tot = parallel_tempering!(spins, E_tot, beta, switch)
+            switch = 1 - switch
+        end
+
         yield()
     end
     E_check = totalEnergy(sgraph, spins, Js, h)
