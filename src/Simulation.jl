@@ -27,6 +27,7 @@ function measure!(
 
     const invN = 1. / sgraph.N_nodes
 
+    # Initialize binning analysis
     E_BA = BinnerA(200)
     Es = Array{Float64}(N_sweeps)
 
@@ -42,13 +43,14 @@ function measure!(
     Mquad_BA = BinnerA(200)
     Moct_BA = BinnerA(200)
 
-    # dimer = [BinnerA(200) for _ in eachindex(spins)]
     Dimer_xy = BinnerA(200)
     Dimer_xy_var = BinnerA(200)
     Dimer_z = BinnerA(200)
     Dimer_z_var = BinnerA(200)
 
-    # additional_observables = true
+    # "Staggered" magnetizatio
+    # Flips the xy and/or z direction if it maps the current system to a ferro-
+    # magnetic one. Mostly use for automatic data evaluation
     Nhalf = div(sgraph.N_nodes, 2)
     @inline @inbounds flip1(i::Int64, s::Point3{Float64}) = i <= Nhalf ? s : [-s[1], -s[2], s[3]]
     @inline flip2(i::Int64, s::Point3{Float64}) = i <= Nhalf ? s : -s

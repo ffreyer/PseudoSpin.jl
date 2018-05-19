@@ -35,31 +35,37 @@ import Base.start, Base.next, Base.length, Base.done, Base.eltype
 import Base.push!, Base.mean, Base.var
 
 
-# Files used in simulation
+# Bravais lattice vectors, positions
 include("Crystal.jl")
 export sc, bcc, fcc, diamond, combine
 
-
+# Neighbor search and path generation
 include("RGraph.jl")
 export RGraph, generate_paths!
 
-
+# Lattice graph
 include("SGraph.jl")
 export SGraph, Basisfill
 export rand_spin, rand_spin!, get_positions
 
-
-include("model.jl")
+# Essential Metropolis functions (energy, sweep, ...)
+include("Model.jl")
 export init_edges!
 export totalEnergy, deltaEnergy
 export kernel, sweep
 
-
-include("simulation.jl")    # TODO rename this
-include("Measure.jl")       # TODO name this simulation.jl... probably
+# Simulated Annealing, Binning Analysis, Jackknife, histograms
+include("DataAnalysis.jl")
 export Freezer, ConstantT, cool_to
 export BinnerA, mean, var, tau
 export BinnerH, jackknife
+
+# File writing (duh)
+include("FileWriter.jl")
+export write_header!, write_BA!, write_JK!, write_HB!, write_SC!
+
+# full simulation setup
+include("Simulation.jl")
 export measure!, simulate!
 
 
