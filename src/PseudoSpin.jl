@@ -64,9 +64,13 @@ export BinnerH, jackknife
 include("FileWriter.jl")
 export write_header!, write_BA!, write_JK!, write_HB!, write_SC!
 
-# full simulation setup
+# full Measurement (no thermalization)
+include("Measure.jl")
+export measure!, measure_no_paths!
+
+# full simulation (parameters, thermalization)
 include("Simulation.jl")
-export measure!, simulate!
+export thermalize!, thermalize_no_paths!, imulate!
 
 
 #=
