@@ -18,10 +18,12 @@ function write_header!(
         Js::Vector{Tuple{Float64, Float64}},
         h::Point3{Float64},
         g::Float64,
-        T::Float64
+        T::Float64,
+        do_parallel_tempering::Bool,
+        batch_size::Int64
     )
 
-    write(file, "V03")
+    write(file, "V04")
     write(file, N_points)
     write(file, TH_sweeps)
     write(file, TH_Temp)
@@ -40,6 +42,9 @@ function write_header!(
     for _h in h; write(file, _h) end
     write(file, g)
     write(file, T)
+    
+    write(file, do_parallel_tempering)
+    write(file, batch_size)
 
     nothing
 end

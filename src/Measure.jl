@@ -157,8 +157,9 @@ function measure!(
         srdMzabs += vars[3]
         # end
 
-        if do_pt
-            E_tot = parallel_tempering!(spins, E_tot, beta, switch)
+        if do_pt && (i % batch_size == 0)
+            E_tot, spins = parallel_tempering(spins, E_tot, beta, switch)
+            init_edges!(sgraph, spins)
             switch = 1 - switch
         end
 
@@ -371,8 +372,9 @@ function measure_no_paths!(
         srdMzabs += vars[3]
         # end
 
-        if do_pt
-            E_tot = parallel_tempering!(spins, E_tot, beta, switch)
+        if do_pt && (i % batch_size == 0)
+            E_tot, spins = parallel_tempering(spins, E_tot, beta, switch)
+            init_edges!(sgraph, spins)
             switch = 1 - switch
         end
 
@@ -587,8 +589,9 @@ function measure!(
         srdMzabs += vars[3]
         # end
 
-        if do_pt
-            E_tot = parallel_tempering!(spins, E_tot, beta, switch)
+        if do_pt && (i % batch_size == 0)
+            E_tot, spins = parallel_tempering(spins, E_tot, beta, switch)
+            init_edges!(sgraph, spins)
             switch = 1 - switch
         end
 

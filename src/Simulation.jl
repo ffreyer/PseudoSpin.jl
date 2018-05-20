@@ -13,7 +13,7 @@ function thermalize!(
     if do_pt
         i = 0       # count against batch_size
         switch = 0  # switch between forward and backward propagation
-        E_tot = totalEnergy(sgraph, spins, Js, h)
+        E_tot = totalEnergy(sgraph, spins, Js, h, g)
 
         for beta in cool_to(TH_method, T)
             E_tot = sweep(sgraph, spins, E_tot, Js, beta, h, g)
@@ -21,10 +21,21 @@ function thermalize!(
 
             # parallel tempering step
             if i % batch_size == 0
-                E_tot = parallel_tempering!(spins, E_tot, beta, switch)
+                E_tot, spins = parallel_tempering(spins, E_tot, beta, switch)
+                init_edges!(sgraph, spins)
                 switch = 1 - switch
             end
             yield()
+        end
+
+        E_check = totalEnergy(sgraph, spins, Js, h)
+        if !(E_tot ≈ E_check)
+            MPI.Finalize()
+            throw(ErrorException(
+                "E_tot inconsistent on $(MPI.Comm_rank(MPI.COMM_WORLD)) after $i\
+                $E_tot =/= $(E_check)\
+                in full thermalize."
+            ))
         end
     else
         for beta in cool_to(TH_method, T)
@@ -51,7 +62,7 @@ function thermalize_no_paths!(
     if do_pt
         i = 0       # count against batch_size
         switch = 0  # switch between forward and backward propagation
-        E_tot = totalEnergy(sgraph, spins, Js, h)
+        E_tot = totalEnergy(sgraph, spins, Js, h, g)
 
         for beta in cool_to(TH_method, T)
             E_tot = sweep_no_paths(sgraph, spins, E_tot, Js, beta, h, g)
@@ -59,10 +70,21 @@ function thermalize_no_paths!(
 
             # parallel tempering step
             if i % batch_size == 0
-                E_tot = parallel_tempering!(spins, E_tot, beta, switch)
+                E_tot, spins = parallel_tempering(spins, E_tot, beta, switch)
+                init_edges!(sgraph, spins)
                 switch = 1 - switch
             end
             yield()
+        end
+
+        E_check = totalEnergy(sgraph, spins, Js, h, g)
+        if !(E_tot ≈ E_check)
+            MPI.Finalize()
+            throw(ErrorException(
+                "E_tot inconsistent on $(MPI.Comm_rank(MPI.COMM_WORLD)) after $i\
+                $E_tot =/= $(E_check)\
+                in no-paths thermalize."
+            ))
         end
     else
         for beta in cool_to(TH_method, T)
@@ -96,10 +118,21 @@ function thermalize!(
 
             # parallel tempering step
             if i % batch_size == 0
-                E_tot = parallel_tempering!(spins, E_tot, beta, switch)
+                E_tot, spins = parallel_tempering(spins, E_tot, beta, switch)
+                init_edges!(sgraph, spins)
                 switch = 1 - switch
             end
             yield()
+        end
+
+        E_check = totalEnergy(sgraph, spins, Js, h)
+        if !(E_tot ≈ E_check)
+            MPI.Finalize()
+            throw(ErrorException(
+                "E_tot inconsistent on $(MPI.Comm_rank(MPI.COMM_WORLD)) after $i\
+                $E_tot =/= $(E_check)\
+                in reduced thermalize."
+            ))
         end
     else
         for beta in cool_to(TH_method, T)
@@ -149,8 +182,6 @@ function simulate!(
     # println("\t h = ", h)
     # println("\t #messure = ", ME_sweeps)
 
-    do_pt && MPI.Init()
-
     # Fool-proof? file creation that was actually not fool-proof
     if !isdir(path)
         println(
@@ -168,11 +199,12 @@ function simulate!(
 
     write_header!(
         file, 1, length(TH_method), TH_method.T_max, ME_sweeps, sys_size,
-        Int64(sgraph.N_nodes), sgraph.K_edges, Js, h, g, T #TODO: order: g, T
+        Int64(sgraph.N_nodes), sgraph.K_edges, Js, h, g, T,
+        do_pt, batch_size
     )
 
     # Thermalization
-    init_edges!(sgraph, spins)
+    # init_edges!(sgraph, spins)
     # on_g_branch = g != 0.
     if T > 0.0
         if g == 0.0
@@ -208,7 +240,6 @@ function simulate!(
     end
 
     close(file)
-    do_pt && MPI.Finalize()
 
     nothing
 end
@@ -230,14 +261,28 @@ function simulate!(
         batch_size::Int64 = 1000
     )
 
-    for (i, T) in enumerate(Ts)
+    if do_parallel_tempering
+        MPI.Init()
+        @assert MPI.Comm_size(MPI.COMM_WORLD) == length(Ts) "The number of processes has to match the number of Temperatures!"
+        i = MPI.Comm_rank(MPI.COMM_WORLD)+1
         simulate!(
             sgraph, spins, sys_size,
             path, filename * string(i),
-            T, Js,
+            Ts[i], Js,
             TH_method, ME_sweeps, h, g,
             do_parallel_tempering, batch_size
         )
+        MPI.Finalize()
+    else
+        for (i, T) in enumerate(Ts)
+            simulate!(
+                sgraph, spins, sys_size,
+                path, filename * string(i),
+                T, Js,
+                TH_method, ME_sweeps, h, g,
+                do_parallel_tempering, batch_size
+            )
+        end
     end
 
     nothing
@@ -310,6 +355,10 @@ function simulate!(;
         do_parallel_tempering::Bool = false,
         batch_size::Int64 = 1000
     )
+    @assert !do_parallel_tempering || (length(Ts) > 1) "Parallel tempering only\
+     works with multiple Temperatures!"
+
+    # println("Do parallel tempering? $do_parallel_tempering")
 
     # Simulation graph
     rgraph = RGraph(diamond("A"), neighbor_search_depth)
@@ -330,17 +379,13 @@ function simulate!(;
     end
 
     simulate!(
-        sim,
-        spins,
-        L,
-        path * folder,
-        filename,
+        sim, spins,L,
+        path * folder, filename,
         length(Ts) == 1 ? T : Ts,
         Js,
         Freezer(TH_sweeps, Freeze_temperature, N_switch=N_switch),
         ME_sweeps,
-        h,
-        g,
+        h, g,
         do_parallel_tempering,
         batch_size
     )

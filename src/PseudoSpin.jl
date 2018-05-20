@@ -55,7 +55,8 @@ export init_edges!
 export totalEnergy, deltaEnergy
 export kernel, sweep
 
-# Simulated Annealing, Binning Analysis, Jackknife, histograms
+# Simulated Annealing, parallel tempering
+# Binning Analysis, Jackknife, histograms
 include("DataAnalysis.jl")
 export parallel_tempering
 export Freezer, ConstantT, cool_to
@@ -73,33 +74,5 @@ export measure!, measure_no_paths!
 # full simulation (parameters, thermalization)
 include("Simulation.jl")
 export thermalize!, thermalize_no_paths!, simulate!
-
-
-#=
-    Cubic.jl
-Overly general methods to create cubic unit cells.
-
-    RGraph.jl
-Defines a cyclic (or recursive) Graph, which describes the neighbors/paths used
-in the simulation. The graph only has one node per Bravais lattice (from Cubic)
-and one edge per neighbor-connection (i.e. 4 nearest neighbor edges for each
-node on the diamond lattice).
-
-    SGraph.jl
-Defines a Simulation-Graph, which describes an extensive lattice used in the
-simulation. The generation of this graph requires an RGraph.
-
-    model.jl
-This file contains most of the "low-level" Monte-Carlo code, i.e. the functions
-required to perform a sweep.
-
-    simulation.jl
-Here, higher level functions around the Monte-Carlo code are defined. This
-includes file writers, Binning Analysis, Jackknife and functions to run the
-simulation.
-Note: main.jl and mainf.jl contain more functionality to simplify running the
-      simulation.
-=#
-
 
 end # module

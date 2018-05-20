@@ -1,0 +1,15 @@
+neighbors	2
+do_paths	true
+path	output/
+folder
+filename	mpi_test
+L	4
+#Js	-1.0	-0.4	0.3	0.12	-0.1	0.0	0.0	1.0
+Js	-1.0	0.0	0.0	0.0	0.0	0.0	0.0	0.0
+Ts	0.3	0.4	0.5	0.6
+TH	20000
+freeze_temp	2.0
+ME	80000
+#h	0.010000	0.0	0.5
+#g	0.52
+do_parallel_tempering	true
