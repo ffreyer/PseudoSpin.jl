@@ -8,7 +8,7 @@
 
 Neat?
 """
-function parallel_tempering(
+function parallel_tempering!(
         spins::Vector{Point3{Float64}},
         E_tot::Float64,
         beta::Float64,
@@ -23,7 +23,6 @@ function parallel_tempering(
     beta1 = [beta]
     beta2 = [beta]
     old_spins = deepcopy(spins)
-    new_spins = deepcopy(spins)
 
     if (switch + rank) % 2 == 0
         comm_with = rank + 1
@@ -43,15 +42,15 @@ function parallel_tempering(
             MPI.Send(do_swap, comm_with, 2, comm)
 
             if do_swap == 0
-                # println("[$rank|$comm_with] \t $(E_tot1[1]) \t <---> \t $(E_tot2[1])  \t  $(beta1[1]) \t <---> \t $(beta2[1])  \t  $dEdT")
-                MPI.Recv!(new_spins, comm_with, 3, comm)
-                MPI.Send(old_spins, comm_with, 4, comm)
+                # print("[$rank|$comm_with] \t $(round(E_tot1[1], 3)) \t <---> \t $(round(E_tot2[1], 3))  \t  $(round(beta1[1], 3)) \t <---> \t $(round(beta2[1], 3))  \t  $dEdT\n")
+                MPI.Send(old_spins, comm_with, 3, comm)
+                MPI.Recv!(spins, comm_with, 4, comm)
                 MPI.Send(E_tot1, comm_with, 5, comm)
-                spins = new_spins
-                E_tot = E_tot2[1]
-            # else println("[$rank|$comm_with] \t $(E_tot1[1]) \t |---| \t $(E_tot2[1])  \t  $(beta1[1]) \t |---| \t $(beta2[1])  \t  $dEdT")
+                return E_tot2[1]
+            # else print("[$rank|$comm_with] \t $(round(E_tot1[1], 3)) \t |---| \t $(round(E_tot2[1], 3))  \t  $(round(beta1[1], 3)) \t |---| \t $(round(beta2[1], 3))  \t  $dEdT\n")
             end
         end
+        return E_tot
     else
         comm_with = rank - 1
 
@@ -63,11 +62,81 @@ function parallel_tempering(
             do_swap, status = MPI.Recv(Int64, comm_with, 2, comm)
 
             if do_swap == 0
-                MPI.Send(old_spins, comm_with, 3, comm)
-                MPI.Recv!(new_spins, comm_with, 4, comm)
+                MPI.Recv!(spins, comm_with, 3, comm)
+                MPI.Send(old_spins, comm_with, 4, comm)
                 MPI.Recv!(E_tot2, comm_with, 5, comm)
+                return E_tot2[1]
+            end
+        end
+        return E_tot
+    end
 
-                spins = new_spins
+    # NOTE Barrier is not necessary, right?
+    # MPI.Barrier(comm)
+end
+
+
+function parallel_tempering_time!(
+        spins::Vector{Point3{Float64}},
+        E_tot::Float64,
+        beta::Float64,
+        switch::Int64,
+        DEBUG::Bool = false
+    )
+    blocked_time = 0.0
+
+    comm = MPI.COMM_WORLD
+    rank = MPI.Comm_rank(comm)
+    comm_size = MPI.Comm_size(comm)
+
+    E_tot1 = [E_tot]
+    E_tot2 = [E_tot]
+    beta1 = [beta]
+    beta2 = [beta]
+    old_spins = deepcopy(spins)
+
+    if (switch + rank) % 2 == 0
+        comm_with = rank + 1
+
+        if comm_with < comm_size
+            blocked_time += @elapsed MPI.Recv!(E_tot2, comm_with, 0, comm)
+            blocked_time += @elapsed MPI.Recv!(beta2, comm_with, 1, comm)
+
+            @fastmath @inbounds dEdT = (E_tot2[1] - E_tot1[1]) * (beta2[1] - beta1[1])
+            if dEdT > 0.0
+                do_swap = 0
+            elseif exp(dEdT) > rand()
+                do_swap = 0
+            else
+                do_swap = 1
+            end
+            blocked_time += @elapsed MPI.Send(do_swap, comm_with, 2, comm)
+
+            if do_swap == 0
+                # print("[$rank|$comm_with] \t $(round(E_tot1[1], 3)) \t <---> \t $(round(E_tot2[1], 3))  \t  $(round(beta1[1], 3)) \t <---> \t $(round(beta2[1], 3))  \t  $dEdT\n")
+                blocked_time += @elapsed MPI.Recv!(spins, comm_with, 3, comm)
+                blocked_time += @elapsed MPI.Send(old_spins, comm_with, 4, comm)
+                blocked_time += @elapsed MPI.Send(E_tot1, comm_with, 5, comm)
+                E_tot = E_tot2[1]
+            # else print("[$rank|$comm_with] \t $(round(E_tot1[1], 3)) \t |---| \t $(round(E_tot2[1], 3))  \t  $(round(beta1[1], 3)) \t |---| \t $(round(beta2[1], 3))  \t  $dEdT\n")
+            end
+        end
+    else
+        comm_with = rank - 1
+
+        if comm_with >= 0
+            blocked_time += @elapsed MPI.Send(E_tot1, comm_with, 0, comm)
+            blocked_time += @elapsed MPI.Send(beta1, comm_with, 1, comm)
+
+            do_swap = -1
+            blocked_time -= time()
+            do_swap, status = MPI.Recv(Int64, comm_with, 2, comm)
+            blocked_time += time()
+
+            if do_swap == 0
+                blocked_time += @elapsed MPI.Send(old_spins, comm_with, 3, comm)
+                blocked_time += @elapsed MPI.Recv!(spins, comm_with, 4, comm)
+                blocked_time += @elapsed MPI.Recv!(E_tot2, comm_with, 5, comm)
                 E_tot = E_tot2[1]
             end
         end
@@ -75,7 +144,7 @@ function parallel_tempering(
 
     # NOTE Barrier is not necessary, right?
     # MPI.Barrier(comm)
-    return E_tot, spins
+    return E_tot, blocked_time
 end
 
 

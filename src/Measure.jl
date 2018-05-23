@@ -158,16 +158,18 @@ function measure!(
         # end
 
         if do_pt && (i % batch_size == 0)
-            E_tot, spins = parallel_tempering(spins, E_tot, beta, switch)
+            E_tot = parallel_tempering!(spins, E_tot, beta, switch)
             init_edges!(sgraph, spins)
             switch = 1 - switch
         end
 
         yield()
     end
+
+    init_edges!(sgraph, spins)
     E_check = totalEnergy(sgraph, spins, Js, h, g)
     if !(E_tot ≈ E_check)
-        warn("E_tot diverged by ", (E_check - E_tot) / E_check)
+        warn("E_tot diverged by $(round(100(E_check - E_tot) / E_check, 3))% (E_check = $E_check, E_tot = $E_tot).")
     end
 
     # This formula is wrong for k =/= 1
@@ -373,13 +375,15 @@ function measure_no_paths!(
         # end
 
         if do_pt && (i % batch_size == 0)
-            E_tot, spins = parallel_tempering(spins, E_tot, beta, switch)
+            E_tot = parallel_tempering!(spins, E_tot, beta, switch)
             init_edges!(sgraph, spins)
             switch = 1 - switch
         end
 
         yield()
     end
+
+    init_edges!(sgraph, spins)
     E_check = totalEnergy(sgraph, spins, Js, h, g)
     if !(E_tot ≈ E_check)
         warn("E_tot diverged by ", (E_check - E_tot) / E_check)
@@ -589,14 +593,21 @@ function measure!(
         srdMzabs += vars[3]
         # end
 
+        # if do_pt && (i % batch_size == 0)
+        #     E_tot, spins = parallel_tempering(spins, E_tot, beta, switch)
+        #     init_edges!(sgraph, spins)
+        #     switch = 1 - switch
+        # end
         if do_pt && (i % batch_size == 0)
-            E_tot, spins = parallel_tempering(spins, E_tot, beta, switch)
+            E_tot = parallel_tempering!(spins, E_tot, beta, switch)
             init_edges!(sgraph, spins)
             switch = 1 - switch
         end
 
         yield()
     end
+
+    init_edges!(sgraph, spins)
     E_check = totalEnergy(sgraph, spins, Js, h)
     if !(E_tot ≈ E_check)
         warn("E_tot diverged by ", (E_check - E_tot) / E_check)

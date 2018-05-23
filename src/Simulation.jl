@@ -14,6 +14,10 @@ function thermalize!(
         i = 0       # count against batch_size
         switch = 0  # switch between forward and backward propagation
         E_tot = totalEnergy(sgraph, spins, Js, h, g)
+        MPI.Barrier(MPI.COMM_WORLD)
+
+        # blocked_time = 0.0
+        # total_time = -time()
 
         for beta in cool_to(TH_method, T)
             E_tot = sweep(sgraph, spins, E_tot, Js, beta, h, g)
@@ -21,27 +25,35 @@ function thermalize!(
 
             # parallel tempering step
             if i % batch_size == 0
-                E_tot, spins = parallel_tempering(spins, E_tot, beta, switch)
+                E_tot = parallel_tempering!(spins, E_tot, beta, switch)
+                # E_tot, bt = parallel_tempering_time!(spins, E_tot, beta, switch)
+                # blocked_time += bt
                 init_edges!(sgraph, spins)
                 switch = 1 - switch
             end
             yield()
         end
 
-        E_check = totalEnergy(sgraph, spins, Js, h)
+        E_check = totalEnergy(sgraph, spins, Js, h, g)
         if !(E_tot ≈ E_check)
-            MPI.Finalize()
-            throw(ErrorException(
+            warn(
                 "E_tot inconsistent on $(MPI.Comm_rank(MPI.COMM_WORLD)) after $i\
                 $E_tot =/= $(E_check)\
                 in full thermalize."
-            ))
+            )
+            MPI.Barrier()
+            MPI.Finalize()
+            exit()
         end
+        # total_time += time()
+        # print("[$(MPI.Comm_rank(MPI.COMM_WORLD))] was blocked for $blocked_time / $total_time = $(round(blocked_time/total_time*100, 1))%. \n")
     else
+        tic()
         for beta in cool_to(TH_method, T)
             sweep(sgraph, spins, Js, beta, h, g)
             yield()
         end
+        print("[T = $T] $(toq())\n")
     end
     nothing
 end
@@ -70,7 +82,7 @@ function thermalize_no_paths!(
 
             # parallel tempering step
             if i % batch_size == 0
-                E_tot, spins = parallel_tempering(spins, E_tot, beta, switch)
+                E_tot = parallel_tempering!(spins, E_tot, beta, switch)
                 init_edges!(sgraph, spins)
                 switch = 1 - switch
             end
@@ -79,12 +91,14 @@ function thermalize_no_paths!(
 
         E_check = totalEnergy(sgraph, spins, Js, h, g)
         if !(E_tot ≈ E_check)
-            MPI.Finalize()
-            throw(ErrorException(
+            warn(
                 "E_tot inconsistent on $(MPI.Comm_rank(MPI.COMM_WORLD)) after $i\
                 $E_tot =/= $(E_check)\
-                in no-paths thermalize."
-            ))
+                in full thermalize."
+            )
+            MPI.Barrier()
+            MPI.Finalize()
+            exit()
         end
     else
         for beta in cool_to(TH_method, T)
@@ -118,21 +132,25 @@ function thermalize!(
 
             # parallel tempering step
             if i % batch_size == 0
-                E_tot, spins = parallel_tempering(spins, E_tot, beta, switch)
+                E_tot = parallel_tempering!(spins, E_tot, beta, switch)
+                # E_tot, _ = parallel_tempering_time!(spins, E_tot, beta, switch)
                 init_edges!(sgraph, spins)
                 switch = 1 - switch
             end
             yield()
         end
 
+        init_edges!(sgraph, spins)
         E_check = totalEnergy(sgraph, spins, Js, h)
         if !(E_tot ≈ E_check)
-            MPI.Finalize()
-            throw(ErrorException(
+            warn(
                 "E_tot inconsistent on $(MPI.Comm_rank(MPI.COMM_WORLD)) after $i\
                 $E_tot =/= $(E_check)\
-                in reduced thermalize."
-            ))
+                in full thermalize."
+            )
+            MPI.Barrier()
+            MPI.Finalize()
+            exit()
         end
     else
         for beta in cool_to(TH_method, T)
