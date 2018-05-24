@@ -148,7 +148,7 @@ function parallel_tempering_time!(
 end
 
 
-type Freezer
+mutable struct Freezer
     sin_values::Vector{Float64}
     exp_values::Vector{Float64}
     exp_deltas::Vector{Float64}
@@ -262,7 +262,7 @@ end
 
 # "Shock"-freezing at constant temeprature
 # init: F = ConstantT(N); cool_to(F, T)
-immutable ConstantT
+struct ConstantT
     beta::Float64
     N::Int64
 
