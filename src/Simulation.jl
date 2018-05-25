@@ -3,7 +3,7 @@ function thermalize!(
         spins::Vector{Point3{Float64}},
         T::Float64,
         Js::Vector{Tuple{Float64, Float64}},
-        TH_method::Freezer,
+        TH_method::AbstractTGen,
         h::Point3{Float64},
         g::Float64,
         do_pt::Bool = false,
@@ -64,7 +64,7 @@ function thermalize_no_paths!(
         spins::Vector{Point3{Float64}},
         T::Float64,
         Js::Vector{Tuple{Float64, Float64}},
-        TH_method::Freezer,
+        TH_method::AbstractTGen,
         h::Point3{Float64},
         g::Float64,
         do_pt::Bool = false,
@@ -115,7 +115,7 @@ function thermalize!(
         spins::Vector{Point3{Float64}},
         T::Float64,
         Js::Vector{Tuple{Float64, Float64}},
-        TH_method::Freezer,
+        TH_method::AbstractTGen,
         h::Point3{Float64},
         do_pt::Bool = false,
         batch_size::Int64 = 1000
@@ -184,7 +184,7 @@ function simulate!(
         filename::String,
         T::Float64,
         Js::Vector{Tuple{Float64, Float64}},
-        TH_method::Freezer,
+        TH_method::AbstractTGen,
         ME_sweeps::Int64,
         h::Point3{Float64}=Point3(0.),
         g::Float64 = 0.,
@@ -271,7 +271,7 @@ function simulate!(
         filename::String,
         Ts::Vector{Float64},    # <- multiple
         Js::Vector{Tuple{Float64, Float64}},
-        TH_method::Union{ConstantT, Freezer},
+        TH_method::AbstractTGen,
         ME_sweeps::Int64,
         h::Point3{Float64}=Point3(0.),
         g::Float64 = 0.,
@@ -335,6 +335,11 @@ end
         N_switch::Int64 = div(TH_sweeps, 2),
         Freeze_temperature::Float64 = 1.5*maximum(Ts),
         ME_sweeps::Int64 = 5_000_000,
+        TH_Method::AbstractTGen = if do_parallel_tempering
+            ConstantT(TH_sweeps)
+        else
+            Freezer(TH_sweeps, Freeze_temperature, N_switch=N_switch)
+        end,
 
         do_parallel_tempering::Bool = false,
         batch_size::Int64 = 1000
@@ -364,14 +369,21 @@ function simulate!(;
         ],
         h::Point3{Float64} = Point3(0.),
         g::Float64 = 0.,
+        # Parallel Tempering
+        do_parallel_tempering::Bool = false,
+        batch_size::Int64 = 1000,
         # Thermalization/Measurement parameters
         TH_sweeps::Int64 = 2_000_000,
         N_switch::Int64 = div(TH_sweeps, 2),
         Freeze_temperature::Float64 = 1.5*maximum(Ts),
-        ME_sweeps::Int64 = 5_000_000,
-        # Parallel Tempering
-        do_parallel_tempering::Bool = false,
-        batch_size::Int64 = 1000
+        TH_method::AbstractTGen = if do_parallel_tempering
+            # This is fine, COnstantT will get re-initalized with the right
+            # temperature when cool_to(::ConstantT, T) is called
+            ConstantT(TH_sweeps)
+        else
+            Freezer(TH_sweeps, Freeze_temperature, N_switch=N_switch)
+        end,
+        ME_sweeps::Int64 = 5_000_000
     )
     @assert !do_parallel_tempering || (length(Ts) > 1) "Parallel tempering only\
      works with multiple Temperatures!"
@@ -401,7 +413,7 @@ function simulate!(;
         path * folder, filename,
         length(Ts) == 1 ? T : Ts,
         Js,
-        Freezer(TH_sweeps, Freeze_temperature, N_switch=N_switch),
+        TH_method,
         ME_sweeps,
         h, g,
         do_parallel_tempering,

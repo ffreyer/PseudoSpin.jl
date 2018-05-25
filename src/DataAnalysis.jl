@@ -148,7 +148,9 @@ function parallel_tempering_time!(
 end
 
 
-mutable struct Freezer
+abstract type AbstractTGen end
+
+mutable struct Freezer <: AbstractTGen
     sin_values::Vector{Float64}
     exp_values::Vector{Float64}
     exp_deltas::Vector{Float64}
@@ -262,11 +264,11 @@ end
 
 # "Shock"-freezing at constant temeprature
 # init: F = ConstantT(N); cool_to(F, T)
-struct ConstantT
+struct ConstantT <: AbstractTGen
     beta::Float64
     N::Int64
 
-    ConstantT(T::Float64, N::Int64) = new(1./T, N)
+    ConstantT(N::Int64, T::Float64) = new(1./T, N)
     ConstantT(N::Int64) = new(0., N)
 end
 
