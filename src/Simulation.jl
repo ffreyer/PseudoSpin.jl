@@ -6,11 +6,78 @@ function thermalize!(
         TH_method::AbstractTGen,
         h::Point3{Float64},
         g::Float64,
-        do_pt::Bool = false,
-        batch_size::Int64 = 1000
+        do_pt::Bool,
+        do_adaptive::Bool,
+        batch_size::Int64,
+        adaptive_sample_size::Int64 = 100batch_size
     )
+    print("correct\n")
     init_edges!(sgraph, spins)
-    if do_pt
+
+    if do_adaptive
+        i = 0       # count against batch_size
+        switch = 0  # switch between forward and backward propagation
+        E_tot = totalEnergy(sgraph, spins, Js, h, g)
+        beta = 1.0 / T
+
+        MPI.Barrier(MPI.COMM_WORLD)
+        rank = MPI.Comm_rank(MPI.COMM_WORLD)
+        comm_size = MPI.Comm_size(MPI.COMM_WORLD)
+
+        temperatures = MPI.Allgather(T, MPI.COMM_WORLD)
+        T_min, T_max = extrema(temperatures)
+        cum_prob = 1.0
+        N_prob = 0
+
+        for i in 1:length(TH_method)
+            E_tot = sweep(sgraph, spins, E_tot, Js, beta, h, g)
+
+            if i % batch_size == 0
+                E_tot, p = parallel_tempering_adaptive!(
+                    sgraph, spins, E_tot, beta, switch
+                )
+                if p >= 0.0
+                    # print("[$rank] p = $p\n")
+                    cum_prob += p
+                    N_prob += 1
+                end
+                switch = 1 - switch
+            end
+
+            if i % adaptive_sample_size == 0
+                # print("\n")
+                MPI.Barrier(MPI.COMM_WORLD)
+                p = N_prob == 0 ? 0.0 : cum_prob / N_prob
+                probabilities = MPI.Allgather(p, MPI.COMM_WORLD)
+                # rank == 0 && print("proabilities = $probabilities\n")
+                if (rank != 0) && (rank != comm_size-1)
+                    T_steps = (T_max - T_min) * cumsum(probabilities) / sum(probabilities)
+                    # Tsteps[1] describes how far Ts[2] should be from Ts[1]
+                    # therefore skip rank == 0
+                    # print("[$rank] calculated Tsteps = $T_steps\n")
+                    new_T = (T_min + T_steps[rank])
+                    beta = 1.0 / new_T
+                    print("[$rank] T = $T   ->  $(round(new_T, 3)) \t\t proabilities = $(probabilities[1:end-1])\n")
+                    # print("[$rank] T = $T  ->  $new_T\n")
+                end
+                cum_prob = 1.0
+                N_prob = 0
+            end
+            yield()
+        end
+
+        E_check = totalEnergy(sgraph, spins, Js, h, g)
+        if !(E_tot ≈ E_check)
+            warn(
+                "E_tot inconsistent on $(MPI.Comm_rank(MPI.COMM_WORLD)) after $i\
+                $E_tot =/= $(E_check)\
+                in full thermalize."
+            )
+            MPI.Finalize()
+            exit()
+        end
+
+    elseif do_pt
         i = 0       # count against batch_size
         switch = 0  # switch between forward and backward propagation
         E_tot = totalEnergy(sgraph, spins, Js, h, g)
@@ -24,7 +91,7 @@ function thermalize!(
 
             # parallel tempering step
             if i % batch_size == 0
-                E_tot = parallel_tempering!(spins, E_tot, beta, switch)
+                E_tot = parallel_tempering!(sgraph, spins, E_tot, beta, switch)
                 # E_tot, bt = parallel_tempering_time!(spins, E_tot, beta, switch)
                 # blocked_time += bt
                 # init_edges!(sgraph, spins)
@@ -54,7 +121,8 @@ function thermalize!(
         end
         print("[T = $T] $(toq())\n")
     end
-    nothing
+
+    1. / T
 end
 
 
@@ -66,8 +134,9 @@ function thermalize_no_paths!(
         TH_method::AbstractTGen,
         h::Point3{Float64},
         g::Float64,
-        do_pt::Bool = false,
-        batch_size::Int64 = 1000
+        do_pt::Bool,
+        do_adaptive::Bool,
+        batch_size::Int64
     )
     init_edges!(sgraph, spins)
     if do_pt
@@ -81,7 +150,7 @@ function thermalize_no_paths!(
 
             # parallel tempering step
             if i % batch_size == 0
-                E_tot = parallel_tempering!(spins, E_tot, beta, switch)
+                E_tot = parallel_tempering!(sgraph, spins, E_tot, beta, switch)
                 # init_edges!(sgraph, spins)
                 switch = 1 - switch
             end
@@ -105,7 +174,8 @@ function thermalize_no_paths!(
             yield()
         end
     end
-    nothing
+
+    1. / T
 end
 
 
@@ -116,8 +186,9 @@ function thermalize!(
         Js::Vector{Tuple{Float64, Float64}},
         TH_method::AbstractTGen,
         h::Point3{Float64},
-        do_pt::Bool = false,
-        batch_size::Int64 = 1000
+        do_pt::Bool,
+        do_adaptive::Bool,
+        batch_size::Int64
     )
     init_edges!(sgraph, spins)
     if do_pt
@@ -131,7 +202,7 @@ function thermalize!(
 
             # parallel tempering step
             if i % batch_size == 0
-                E_tot = parallel_tempering!(spins, E_tot, beta, switch)
+                E_tot = parallel_tempering!(sgraph, spins, E_tot, beta, switch)
                 # E_tot, _ = parallel_tempering_time!(spins, E_tot, beta, switch)
                 # init_edges!(sgraph, spins)
                 switch = 1 - switch
@@ -157,7 +228,8 @@ function thermalize!(
             yield()
         end
     end
-    nothing
+
+    1. / T
 end
 
 
@@ -188,6 +260,7 @@ function simulate!(
         h::Point3{Float64}=Point3(0.),
         g::Float64 = 0.,
         do_pt::Bool = false,
+        do_adaptive::Bool = false,
         batch_size::Int64 = 1000
     )
 
@@ -215,7 +288,7 @@ function simulate!(
     end
 
     write_header!(
-        file, 1, length(TH_method), TH_method.T_max, ME_sweeps, sys_size,
+        file, 1, length(TH_method), last(TH_method), ME_sweeps, sys_size,
         Int64(sgraph.N_nodes), sgraph.K_edges, Js, h, g, T,
         do_pt, batch_size
     )
@@ -225,18 +298,21 @@ function simulate!(
     # on_g_branch = g != 0.
     if T > 0.0
         if g == 0.0
-            thermalize!(sgraph, spins, T, Js, TH_method, h, do_pt, batch_size)
+            beta = thermalize!(
+                sgraph, spins, T, Js, TH_method, h,
+                do_pt, do_adaptive, batch_size
+            )
         elseif (Js[3][1] == Js[3][2] == 0.0) || (Js[4][1] == Js[4][2] == 0.0)
-            thermalize_no_paths!(
-                sgraph, spins, T, Js, TH_method, h, g, do_pt, batch_size
+            beta = thermalize_no_paths!(
+                sgraph, spins, T, Js, TH_method, h, g,
+                do_pt, do_adaptive, batch_size
             )
         else
-            thermalize!(
-                sgraph, spins, T, Js, TH_method, h, g, do_pt, batch_size
+            beta = thermalize!(
+                sgraph, spins, T, Js, TH_method, h, g,
+                do_pt, do_adaptive, batch_size
             )
         end
-
-        beta = 1. / T
     else
         warn("Thermalization skipped, measurement extended.")
         ME_sweeps += length(TH_method)
@@ -275,10 +351,11 @@ function simulate!(
         h::Point3{Float64}=Point3(0.),
         g::Float64 = 0.,
         do_parallel_tempering::Bool = false,
+        do_adaptive::Bool = false,
         batch_size::Int64 = 1000
     )
 
-    if do_parallel_tempering
+    if do_parallel_tempering || do_adaptive
         MPI.Init()
         @assert MPI.Comm_size(MPI.COMM_WORLD) == length(Ts) "The number of processes has to match the number of Temperatures!"
         i = MPI.Comm_rank(MPI.COMM_WORLD)+1
@@ -287,7 +364,7 @@ function simulate!(
             path, filename * string(i),
             Ts[i], Js,
             TH_method, ME_sweeps, h, g,
-            do_parallel_tempering, batch_size
+            do_parallel_tempering || do_adaptive, do_adaptive, batch_size
         )
         MPI.Finalize()
     else
@@ -370,20 +447,20 @@ function simulate!(;
         g::Float64 = 0.,
         # Parallel Tempering
         do_parallel_tempering::Bool = false,
+        do_adaptive::Bool = false,
         batch_size::Int64 = 1000,
         # Thermalization/Measurement parameters
         TH_sweeps::Int64 = 2_000_000,
         N_switch::Int64 = div(TH_sweeps, 2),
         Freeze_temperature::Float64 = 1.5*maximum(Ts),
-        TH_method::AbstractTGen = if do_parallel_tempering
-            # This is fine, COnstantT will get re-initalized with the right
-            # temperature when cool_to(::ConstantT, T) is called
-            ConstantT(TH_sweeps)
+        TH_method::DataType = if do_parallel_tempering || do_adaptive
+            ConstantT
         else
-            Freezer(TH_sweeps, Freeze_temperature, N_switch=N_switch)
+            Freezer
         end,
         ME_sweeps::Int64 = 5_000_000
     )
+
     @assert !do_parallel_tempering || (length(Ts) > 1) "Parallel tempering only\
      works with multiple Temperatures!"
 
@@ -412,10 +489,11 @@ function simulate!(;
         path * folder, filename,
         length(Ts) == 1 ? T : Ts,
         Js,
-        TH_method,
+        TH_method(TH_sweeps, Freeze_temperature, N_switch=N_switch),
         ME_sweeps,
         h, g,
         do_parallel_tempering,
+        do_adaptive,
         batch_size
     )
 

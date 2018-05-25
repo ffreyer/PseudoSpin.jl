@@ -158,7 +158,7 @@ function measure!(
         # end
 
         if do_pt && (i % batch_size == 0)
-            E_tot = parallel_tempering!(spins, E_tot, beta, switch)
+            E_tot = parallel_tempering!(sgraph, spins, E_tot, beta, switch)
             # init_edges!(sgraph, spins)
             switch = 1 - switch
         end
@@ -375,7 +375,7 @@ function measure_no_paths!(
         # end
 
         if do_pt && (i % batch_size == 0)
-            E_tot = parallel_tempering!(spins, E_tot, beta, switch)
+            E_tot = parallel_tempering!(sgraph, spins, E_tot, beta, switch)
             # init_edges!(sgraph, spins)
             switch = 1 - switch
         end
@@ -599,7 +599,7 @@ function measure!(
         #     switch = 1 - switch
         # end
         if do_pt && (i % batch_size == 0)
-            E_tot = parallel_tempering!(spins, E_tot, beta, switch)
+            E_tot = parallel_tempering!(sgraph, spins, E_tot, beta, switch)
             # init_edges!(sgraph, spins)
             switch = 1 - switch
         end

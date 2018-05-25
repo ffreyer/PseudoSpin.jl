@@ -76,6 +76,77 @@ function parallel_tempering!(
     nothing
 end
 
+# returns probability for [i, i+1] or -1.0
+function parallel_tempering_adaptive!(
+        sgraph::SGraph,
+        spins::Vector{Point3{Float64}},
+        E_tot::Float64,
+        beta::Float64,
+        switch::Int64
+    )
+    comm = MPI.COMM_WORLD
+    rank = MPI.Comm_rank(comm)
+    comm_size = MPI.Comm_size(comm)
+
+    E_tot1 = [E_tot]
+    E_tot2 = [E_tot]
+    beta1 = [beta]
+    beta2 = [beta]
+    old_spins = deepcopy(spins)
+    p = -1.0
+
+    if (switch + rank) % 2 == 0
+        comm_with = rank + 1
+
+        if comm_with < comm_size
+            MPI.Recv!(E_tot2, comm_with, 0, comm)
+            MPI.Recv!(beta2, comm_with, 1, comm)
+
+            @fastmath @inbounds dEdT = (E_tot2[1] - E_tot1[1]) * (beta2[1] - beta1[1])
+            p = min(1.0, exp(dEdT))
+            if p == 1
+                do_swap = 0
+            elseif p > rand()
+                do_swap = 0
+            else
+                do_swap = 1
+            end
+            MPI.Send(do_swap, comm_with, 2, comm)
+
+            if do_swap == 0
+                # print("[$rank|$comm_with] \t $(round(E_tot1[1], 3)) \t <---> \t $(round(E_tot2[1], 3))  \t  $(round(beta1[1], 3)) \t <---> \t $(round(beta2[1], 3))  \t  $dEdT\n")
+                MPI.Send(old_spins, comm_with, 3, comm)
+                MPI.Recv!(spins, comm_with, 4, comm)
+                MPI.Send(E_tot1, comm_with, 5, comm)
+                init_edges!(sgraph, spins)
+                return E_tot2[1], p
+            # else print("[$rank|$comm_with] \t $(round(E_tot1[1], 3)) \t |---| \t $(round(E_tot2[1], 3))  \t  $(round(beta1[1], 3)) \t |---| \t $(round(beta2[1], 3))  \t  $dEdT\n")
+            end
+        end
+        return E_tot, p
+    else
+        comm_with = rank - 1
+
+        if comm_with >= 0
+            MPI.Send(E_tot1, comm_with, 0, comm)
+            MPI.Send(beta1, comm_with, 1, comm)
+
+            do_swap = -1
+            do_swap, status = MPI.Recv(Int64, comm_with, 2, comm)
+
+            if do_swap == 0
+                MPI.Recv!(spins, comm_with, 3, comm)
+                MPI.Send(old_spins, comm_with, 4, comm)
+                MPI.Recv!(E_tot2, comm_with, 5, comm)
+                init_edges!(sgraph, spins)
+                return E_tot2[1], p
+            end
+        end
+        return E_tot, p
+    end
+    nothing
+end
+
 
 function parallel_tempering_time!(
         sgraph::SGraph,
@@ -244,6 +315,7 @@ start(F::Freezer) = 0
 done(F::Freezer, i::Int64) = i >= F.N
 length(F::Freezer) = F.N
 eltype(::Freezer) = Float64
+last(F::Freezer) = F.T_max
 
 # next temperature
 @inline function next(F::Freezer, i::Int64)
@@ -272,14 +344,16 @@ struct ConstantT <: AbstractTGen
     ConstantT(N::Int64, T::Float64) = new(1./T, N)
     ConstantT(N::Int64) = new(0., N)
 end
+ConstantT(N::Int64, T::Float64, args...; kwargs...) = ConstantT(N, T)
 
-cool_to(F::ConstantT, T::Float64) = ConstantT(T, F.N)
+cool_to(F::ConstantT, T::Float64) = ConstantT(F.N, T)
 
 start(F::ConstantT) = 0
 next(F::ConstantT, i::Int64) = (F.beta, i+1)
 done(F::ConstantT, i::Int64) = i >= F.N
 eltype(::ConstantT) = Float64
 length(F::ConstantT) = F.N
+last(F::ConstantT) = 1.0 / F.beta
 
 # Iterator end
 

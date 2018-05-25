@@ -13,4 +13,5 @@ ME	1000
 h	0.010000	0.0	0.5
 g	0.52
 do_parallel_tempering	true
+do_adaptive	true
 batch_size	10
