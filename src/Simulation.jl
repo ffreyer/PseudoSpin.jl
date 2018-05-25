@@ -14,7 +14,6 @@ function thermalize!(
         i = 0       # count against batch_size
         switch = 0  # switch between forward and backward propagation
         E_tot = totalEnergy(sgraph, spins, Js, h, g)
-        MPI.Barrier(MPI.COMM_WORLD)
 
         # blocked_time = 0.0
         # total_time = -time()
@@ -28,7 +27,7 @@ function thermalize!(
                 E_tot = parallel_tempering!(spins, E_tot, beta, switch)
                 # E_tot, bt = parallel_tempering_time!(spins, E_tot, beta, switch)
                 # blocked_time += bt
-                init_edges!(sgraph, spins)
+                # init_edges!(sgraph, spins)
                 switch = 1 - switch
             end
             yield()
@@ -41,7 +40,7 @@ function thermalize!(
                 $E_tot =/= $(E_check)\
                 in full thermalize."
             )
-            MPI.Barrier()
+            # MPI.Barrier()
             MPI.Finalize()
             exit()
         end
@@ -83,7 +82,7 @@ function thermalize_no_paths!(
             # parallel tempering step
             if i % batch_size == 0
                 E_tot = parallel_tempering!(spins, E_tot, beta, switch)
-                init_edges!(sgraph, spins)
+                # init_edges!(sgraph, spins)
                 switch = 1 - switch
             end
             yield()
@@ -96,7 +95,7 @@ function thermalize_no_paths!(
                 $E_tot =/= $(E_check)\
                 in full thermalize."
             )
-            MPI.Barrier()
+            # MPI.Barrier()
             MPI.Finalize()
             exit()
         end
@@ -134,7 +133,7 @@ function thermalize!(
             if i % batch_size == 0
                 E_tot = parallel_tempering!(spins, E_tot, beta, switch)
                 # E_tot, _ = parallel_tempering_time!(spins, E_tot, beta, switch)
-                init_edges!(sgraph, spins)
+                # init_edges!(sgraph, spins)
                 switch = 1 - switch
             end
             yield()
@@ -148,7 +147,7 @@ function thermalize!(
                 $E_tot =/= $(E_check)\
                 in full thermalize."
             )
-            MPI.Barrier()
+            # MPI.Barrier()
             MPI.Finalize()
             exit()
         end

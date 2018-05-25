@@ -9,6 +9,7 @@
 Neat?
 """
 function parallel_tempering!(
+        sgraph::SGraph,
         spins::Vector{Point3{Float64}},
         E_tot::Float64,
         beta::Float64,
@@ -46,6 +47,7 @@ function parallel_tempering!(
                 MPI.Send(old_spins, comm_with, 3, comm)
                 MPI.Recv!(spins, comm_with, 4, comm)
                 MPI.Send(E_tot1, comm_with, 5, comm)
+                init_edges!(sgraph, spins)
                 return E_tot2[1]
             # else print("[$rank|$comm_with] \t $(round(E_tot1[1], 3)) \t |---| \t $(round(E_tot2[1], 3))  \t  $(round(beta1[1], 3)) \t |---| \t $(round(beta2[1], 3))  \t  $dEdT\n")
             end
@@ -65,23 +67,22 @@ function parallel_tempering!(
                 MPI.Recv!(spins, comm_with, 3, comm)
                 MPI.Send(old_spins, comm_with, 4, comm)
                 MPI.Recv!(E_tot2, comm_with, 5, comm)
+                init_edges!(sgraph, spins)
                 return E_tot2[1]
             end
         end
         return E_tot
     end
-
-    # NOTE Barrier is not necessary, right?
-    # MPI.Barrier(comm)
+    nothing
 end
 
 
 function parallel_tempering_time!(
+        sgraph::SGraph,
         spins::Vector{Point3{Float64}},
         E_tot::Float64,
         beta::Float64,
-        switch::Int64,
-        DEBUG::Bool = false
+        switch::Int64
     )
     blocked_time = 0.0
 
@@ -117,6 +118,7 @@ function parallel_tempering_time!(
                 blocked_time += @elapsed MPI.Recv!(spins, comm_with, 3, comm)
                 blocked_time += @elapsed MPI.Send(old_spins, comm_with, 4, comm)
                 blocked_time += @elapsed MPI.Send(E_tot1, comm_with, 5, comm)
+                init_edges!(sgraph, spins)
                 E_tot = E_tot2[1]
             # else print("[$rank|$comm_with] \t $(round(E_tot1[1], 3)) \t |---| \t $(round(E_tot2[1], 3))  \t  $(round(beta1[1], 3)) \t |---| \t $(round(beta2[1], 3))  \t  $dEdT\n")
             end
@@ -137,13 +139,12 @@ function parallel_tempering_time!(
                 blocked_time += @elapsed MPI.Send(old_spins, comm_with, 3, comm)
                 blocked_time += @elapsed MPI.Recv!(spins, comm_with, 4, comm)
                 blocked_time += @elapsed MPI.Recv!(E_tot2, comm_with, 5, comm)
+                init_edges!(sgraph, spins)
                 E_tot = E_tot2[1]
             end
         end
     end
 
-    # NOTE Barrier is not necessary, right?
-    # MPI.Barrier(comm)
     return E_tot, blocked_time
 end
 
