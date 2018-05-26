@@ -4,14 +4,15 @@
 - `parallel_tempering!()` should perform `init_edges!()` when necessary
 - should use `ConstantT` by default?
 - dynamic temperature range updates
-  - https://arxiv.org/pdf/1501.05823.pdf
-  - CMBP script
+  - https://arxiv.org/pdf/1501.05823.pdf (?)
+  - http://www.cs.ubc.ca/~nando/540b-2011/projects/8.pdf
+  - CMBP script (doesn't work consistently?)
 
 
 #### General
 
 - move to using my new Lattice library (it's nicer and more straight forward)
-- create files after the simulation... 
+- create files after the simulation...
 
 
 #### data collection
