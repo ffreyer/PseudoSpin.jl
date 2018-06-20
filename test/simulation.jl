@@ -28,16 +28,17 @@ end
     end
     @test BA.count[1] == N
     @test mean(BA) ≈ mean(values)
-    # @test isapprox(var(BA, 1), var(values) / N, rtol=0.05abs(var(values))) 
+    # @test isapprox(var(BA, 1), var(values) / N, rtol=0.05abs(var(values)))
     @test var(BA) != var(values) / N
 end
 
-@testset "Checking Freezer" begin
-    f1 = Freezer(200, 2.5, N_switch=50)
-    for beta in cool_to(f1, 1.0)
-        @test (1/2.500001 <= beta <= 1.000001)
-    end
-end
+# Old Test
+# @testset "Checking Freezer" begin
+#     f1 = Freezer(200, 2.5, N_switch=50)
+#     for beta in cool_to(f1, 1.0)
+#         @test (1/2.500001 <= beta <= 1.000001)
+#     end
+# end
 
 spins = rand_spin(sim.N_nodes)
 ps.init_edges!(sim, spins)

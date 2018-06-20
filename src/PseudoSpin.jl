@@ -32,7 +32,8 @@ const Vec3f0 = Vec{3, Float32}
 
 # I'm implementing new methods for these functions
 import Base.*, Base.==, Base.in, Base.findfirst#, Base.show
-import Base.start, Base.next, Base.length, Base.done, Base.eltype
+# import Base.start, Base.next, Base.length, Base.done, Base.eltype
+import Base: length, next, done, last
 import Base.push!, Base.mean, Base.var
 
 
@@ -56,10 +57,14 @@ export totalEnergy, deltaEnergy
 export kernel, sweep
 
 # Simulated Annealing, parallel tempering
+include("ThermalizationMethods.jl")
+export parallel_tempering
+export Freezer, ConstantT
+export ProbabilityEqualizer
+export initialize, next, done, last
+
 # Binning Analysis, Jackknife, histograms
 include("DataAnalysis.jl")
-export parallel_tempering
-export Freezer, ConstantT, cool_to
 export BinnerA, mean, var, tau
 export BinnerH, jackknife
 
