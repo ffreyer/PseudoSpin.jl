@@ -53,6 +53,29 @@ end
 
 
 """
+    write_Comp!(file, Compressor, ID)
+
+Adds data from a Compressor to the file. The section will start with *CP*
+and the ID.
+"""
+function write_Comp!(file::IOStream, c::Compressor, ID::String)
+    #### tag
+    @assert length(ID) == 5
+    write(file, "CP")
+    write(file, ID)
+
+    out = output(c)
+    write(file, length(out))
+    for x in out
+        write(file, x)
+    end
+
+    nothing
+end
+
+
+
+"""
     write_BA!(file, BinningAnalysis, ID)
 
 Adds data from a Binning Analysis to the file. The section will start with *BA*

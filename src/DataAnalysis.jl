@@ -1,363 +1,3 @@
-# """
-#     parallel_tempering!(
-#         spins::Vector{Point3{Float64}},
-#         E_tot::Float64,
-#         beta::Float64,
-#         switch::Int64
-#     )
-#
-# Neat?
-# """
-# function parallel_tempering!(
-#         sgraph::SGraph,
-#         spins::Vector{Point3{Float64}},
-#         E_tot::Float64,
-#         beta::Float64,
-#         switch::Int64
-#     )
-#     comm = MPI.COMM_WORLD
-#     rank = MPI.Comm_rank(comm)
-#     comm_size = MPI.Comm_size(comm)
-#
-#     E_tot1 = [E_tot]
-#     E_tot2 = [E_tot]
-#     beta1 = [beta]
-#     beta2 = [beta]
-#     old_spins = deepcopy(spins)
-#
-#     if (switch + rank) % 2 == 0
-#         comm_with = rank + 1
-#
-#         if comm_with < comm_size
-#             MPI.Recv!(E_tot2, comm_with, 0, comm)
-#             MPI.Recv!(beta2, comm_with, 1, comm)
-#
-#             @fastmath @inbounds dEdT = (E_tot2[1] - E_tot1[1]) * (beta2[1] - beta1[1])
-#             if dEdT > 0.0
-#                 do_swap = 0
-#             elseif exp(dEdT) > rand()
-#                 do_swap = 0
-#             else
-#                 do_swap = 1
-#             end
-#             MPI.Send(do_swap, comm_with, 2, comm)
-#
-#             if do_swap == 0
-#                 # print("[$rank|$comm_with] \t $(round(E_tot1[1], 3)) \t <---> \t $(round(E_tot2[1], 3))  \t  $(round(beta1[1], 3)) \t <---> \t $(round(beta2[1], 3))  \t  $dEdT\n")
-#                 MPI.Send(old_spins, comm_with, 3, comm)
-#                 MPI.Recv!(spins, comm_with, 4, comm)
-#                 MPI.Send(E_tot1, comm_with, 5, comm)
-#                 init_edges!(sgraph, spins)
-#                 return E_tot2[1]
-#             # else print("[$rank|$comm_with] \t $(round(E_tot1[1], 3)) \t |---| \t $(round(E_tot2[1], 3))  \t  $(round(beta1[1], 3)) \t |---| \t $(round(beta2[1], 3))  \t  $dEdT\n")
-#             end
-#         end
-#         return E_tot
-#     else
-#         comm_with = rank - 1
-#
-#         if comm_with >= 0
-#             MPI.Send(E_tot1, comm_with, 0, comm)
-#             MPI.Send(beta1, comm_with, 1, comm)
-#
-#             do_swap = -1
-#             do_swap, status = MPI.Recv(Int64, comm_with, 2, comm)
-#
-#             if do_swap == 0
-#                 MPI.Recv!(spins, comm_with, 3, comm)
-#                 MPI.Send(old_spins, comm_with, 4, comm)
-#                 MPI.Recv!(E_tot2, comm_with, 5, comm)
-#                 init_edges!(sgraph, spins)
-#                 return E_tot2[1]
-#             end
-#         end
-#         return E_tot
-#     end
-#     nothing
-# end
-#
-# # returns probability for [i, i+1] or -1.0
-# function parallel_tempering_adaptive!(
-#         sgraph::SGraph,
-#         spins::Vector{Point3{Float64}},
-#         E_tot::Float64,
-#         beta::Float64,
-#         switch::Int64
-#     )
-#     comm = MPI.COMM_WORLD
-#     rank = MPI.Comm_rank(comm)
-#     comm_size = MPI.Comm_size(comm)
-#
-#     E_tot1 = [E_tot]
-#     E_tot2 = [E_tot]
-#     beta1 = [beta]
-#     beta2 = [beta]
-#     old_spins = deepcopy(spins)
-#     p = -1.0
-#
-#     if (switch + rank) % 2 == 0
-#         comm_with = rank + 1
-#
-#         if comm_with < comm_size
-#             MPI.Recv!(E_tot2, comm_with, 0, comm)
-#             MPI.Recv!(beta2, comm_with, 1, comm)
-#
-#             @fastmath @inbounds dEdT = (E_tot2[1] - E_tot1[1]) * (beta2[1] - beta1[1])
-#             p = min(1.0, exp(dEdT))
-#             if p == 1
-#                 do_swap = 0
-#             elseif p > rand()
-#                 do_swap = 0
-#             else
-#                 do_swap = 1
-#             end
-#             MPI.Send(do_swap, comm_with, 2, comm)
-#
-#             if do_swap == 0
-#                 # print("[$rank|$comm_with] \t $(round(E_tot1[1], 3)) \t <---> \t $(round(E_tot2[1], 3))  \t  $(round(beta1[1], 3)) \t <---> \t $(round(beta2[1], 3))  \t  $dEdT\n")
-#                 MPI.Send(old_spins, comm_with, 3, comm)
-#                 MPI.Recv!(spins, comm_with, 4, comm)
-#                 MPI.Send(E_tot1, comm_with, 5, comm)
-#                 init_edges!(sgraph, spins)
-#                 return E_tot2[1], p
-#             # else print("[$rank|$comm_with] \t $(round(E_tot1[1], 3)) \t |---| \t $(round(E_tot2[1], 3))  \t  $(round(beta1[1], 3)) \t |---| \t $(round(beta2[1], 3))  \t  $dEdT\n")
-#             end
-#         end
-#         return E_tot, p
-#     else
-#         comm_with = rank - 1
-#
-#         if comm_with >= 0
-#             MPI.Send(E_tot1, comm_with, 0, comm)
-#             MPI.Send(beta1, comm_with, 1, comm)
-#
-#             do_swap = -1
-#             do_swap, status = MPI.Recv(Int64, comm_with, 2, comm)
-#
-#             if do_swap == 0
-#                 MPI.Recv!(spins, comm_with, 3, comm)
-#                 MPI.Send(old_spins, comm_with, 4, comm)
-#                 MPI.Recv!(E_tot2, comm_with, 5, comm)
-#                 init_edges!(sgraph, spins)
-#                 return E_tot2[1], p
-#             end
-#         end
-#         return E_tot, p
-#     end
-#     nothing
-# end
-#
-#
-# function parallel_tempering_time!(
-#         sgraph::SGraph,
-#         spins::Vector{Point3{Float64}},
-#         E_tot::Float64,
-#         beta::Float64,
-#         switch::Int64
-#     )
-#     blocked_time = 0.0
-#
-#     comm = MPI.COMM_WORLD
-#     rank = MPI.Comm_rank(comm)
-#     comm_size = MPI.Comm_size(comm)
-#
-#     E_tot1 = [E_tot]
-#     E_tot2 = [E_tot]
-#     beta1 = [beta]
-#     beta2 = [beta]
-#     old_spins = deepcopy(spins)
-#
-#     if (switch + rank) % 2 == 0
-#         comm_with = rank + 1
-#
-#         if comm_with < comm_size
-#             blocked_time += @elapsed MPI.Recv!(E_tot2, comm_with, 0, comm)
-#             blocked_time += @elapsed MPI.Recv!(beta2, comm_with, 1, comm)
-#
-#             @fastmath @inbounds dEdT = (E_tot2[1] - E_tot1[1]) * (beta2[1] - beta1[1])
-#             if dEdT > 0.0
-#                 do_swap = 0
-#             elseif exp(dEdT) > rand()
-#                 do_swap = 0
-#             else
-#                 do_swap = 1
-#             end
-#             blocked_time += @elapsed MPI.Send(do_swap, comm_with, 2, comm)
-#
-#             if do_swap == 0
-#                 # print("[$rank|$comm_with] \t $(round(E_tot1[1], 3)) \t <---> \t $(round(E_tot2[1], 3))  \t  $(round(beta1[1], 3)) \t <---> \t $(round(beta2[1], 3))  \t  $dEdT\n")
-#                 blocked_time += @elapsed MPI.Recv!(spins, comm_with, 3, comm)
-#                 blocked_time += @elapsed MPI.Send(old_spins, comm_with, 4, comm)
-#                 blocked_time += @elapsed MPI.Send(E_tot1, comm_with, 5, comm)
-#                 init_edges!(sgraph, spins)
-#                 E_tot = E_tot2[1]
-#             # else print("[$rank|$comm_with] \t $(round(E_tot1[1], 3)) \t |---| \t $(round(E_tot2[1], 3))  \t  $(round(beta1[1], 3)) \t |---| \t $(round(beta2[1], 3))  \t  $dEdT\n")
-#             end
-#         end
-#     else
-#         comm_with = rank - 1
-#
-#         if comm_with >= 0
-#             blocked_time += @elapsed MPI.Send(E_tot1, comm_with, 0, comm)
-#             blocked_time += @elapsed MPI.Send(beta1, comm_with, 1, comm)
-#
-#             do_swap = -1
-#             blocked_time -= time()
-#             do_swap, status = MPI.Recv(Int64, comm_with, 2, comm)
-#             blocked_time += time()
-#
-#             if do_swap == 0
-#                 blocked_time += @elapsed MPI.Send(old_spins, comm_with, 3, comm)
-#                 blocked_time += @elapsed MPI.Recv!(spins, comm_with, 4, comm)
-#                 blocked_time += @elapsed MPI.Recv!(E_tot2, comm_with, 5, comm)
-#                 init_edges!(sgraph, spins)
-#                 E_tot = E_tot2[1]
-#             end
-#         end
-#     end
-#
-#     return E_tot, blocked_time
-# end
-#
-#
-# abstract type AbstractTGen end
-#
-# mutable struct Freezer <: AbstractTGen
-#     sin_values::Vector{Float64}
-#     exp_values::Vector{Float64}
-#     exp_deltas::Vector{Float64}
-#
-#     N::Int64
-#     N_switch::Int64
-#     j_step::Float64
-#     T_max::Float64
-#
-#     j::Float64
-#     delta_T::Float64
-#     T::Float64
-#     beta::Float64
-# end
-#
-# # Constructor, with basic setup
-# """
-#     Freezer(N, T_max[;
-#         N_switch,
-#         N_exp_points,
-#         exp_strength,
-#         N_sin_points,
-#         sin_percentage
-#     ])
-#
-# A Freezer is an iterator which returns inverse temperatures oscilalting around an
-# exponentially decaying function starting at some temperature T_max. The final
-# temperature is given in cool_to(...). The iterator returns a total of N
-# temperatures, but is constant after N_switch temperatures.
-#
-# To avoid calling sin() and exp() often, a set number of sin and exp points are
-# calculated in advance. The number of points can be adjusted through N_exp_points
-# and N_sin_points. The rate of the exponential decay can be adjusted through
-# exp_strength (higher = faster decay). The strength of the oscillation depends on
-# sin_percentage, while the rate of the oscillation is controlled by N_sin_points.
-# (One period over N_sin_points)
-# """
-# function Freezer(
-#         N::Int64,
-#         T_max::Float64;
-#         N_switch::Int64 = -1,
-#         N_exp_points::Int64 = 10,
-#         exp_strength::Float64 = 100.,
-#         N_sin_points::Int64 = 10_000,
-#         sin_percentage::Float64 = 0.2
-#     )
-#
-#     (N_switch == -1) && (N_switch = div(N, 2))
-#     sin_values = 1. - sin_percentage .* sin.(linspace(0., 2*pi, N_sin_points))
-#     exp_values = (exp.(linspace(log(exp_strength + 1), 0., N_exp_points)) - 1.) ./ exp_strength
-#     exp_deltas = exp_values[2:end] - exp_values[1:end-1]
-#
-#     Freezer(
-#         sin_values,
-#         exp_values,
-#         exp_deltas,
-#         N,
-#         N_switch,
-#         (N_exp_points - 1) / N_switch,
-#         T_max,
-#         0.,
-#         0.,
-#         0.,
-#         0.
-#     )
-# end
-#
-# # Sets up T as the final temperature
-# """
-#     cool_to(freezer, T)
-#
-# Starts the Freezer with a final temperature T.
-#
-# Example:
-#     f = Freezer(1_000_000, 1.0)
-#     for beta in cool_to(f, 0.1)
-#         ...
-#     end
-# """
-# function cool_to(F::Freezer, T::Float64)
-#     F.delta_T = F.T_max - T
-#     F.T = T
-#     F.beta = 1./T
-#     F.j = 1. - F.j_step
-#     return F
-# end
-#
-# # Iterator functions
-# start(F::Freezer) = 0
-# done(F::Freezer, i::Int64) = i >= F.N
-# length(F::Freezer) = F.N
-# eltype(::Freezer) = Float64
-# last(F::Freezer) = F.T_max
-#
-# # next temperature
-# @inline function next(F::Freezer, i::Int64)
-#     if i < F.N_switch # F.N_half
-#         i += 1
-#         F.j += F.j_step
-#         return 1. / (
-#             F.delta_T * (
-#                 F.exp_values[floor(Int64, F.j)] +
-#                 (F.j - floor(F.j)) * F.exp_deltas[floor(Int64, F.j)]
-#             ) * F.sin_values[(i - 1) % length(F.sin_values) + 1] + F.T
-#         ), i
-#
-#     else
-#         i += 1
-#         return F.beta, i
-#     end
-# end
-#
-# # "Shock"-freezing at constant temeprature
-# # init: F = ConstantT(N); cool_to(F, T)
-# struct ConstantT <: AbstractTGen
-#     beta::Float64
-#     N::Int64
-#
-#     ConstantT(N::Int64, T::Float64) = new(1./T, N)
-#     ConstantT(N::Int64) = new(0., N)
-# end
-# ConstantT(N::Int64, T::Float64, args...; kwargs...) = ConstantT(N, T)
-#
-# cool_to(F::ConstantT, T::Float64) = ConstantT(F.N, T)
-#
-# start(F::ConstantT) = 0
-# next(F::ConstantT, i::Int64) = (F.beta, i+1)
-# done(F::ConstantT, i::Int64) = i >= F.N
-# eltype(::ConstantT) = Float64
-# length(F::ConstantT) = F.N
-# last(F::ConstantT) = 1.0 / F.beta
-#
-# # Iterator end
-
-
 ################################################################################
 #### Binning Anaylsis
 ################################################################################
@@ -367,7 +7,7 @@
 # is one of these for each binning level. Since when two values should be
 # compressed, this is done immediately, so that only one value needs to be saved.
 # switch indicates whether value should be written to or averaging should happen.
-type Compressor
+type BinningCompressor
     value::Float64
     switch::UInt8
 end
@@ -375,7 +15,7 @@ end
 
 type BinnerA
     # list of Compressors, one per level
-    compressors::Vector{Compressor}
+    compressors::Vector{BinningCompressor}
 
     # currently binned values
     output::Vector{Float64}
@@ -402,7 +42,7 @@ binning. Returns a Binning Analysis object. Use push! to add values.
 """
 function BinnerA(min_output_size::Integer)
     BinnerA(
-        Compressor[],
+        BinningCompressor[],
         Array{Float64}(2 * min_output_size),
         UInt32(1),
         UInt32(2 * min_output_size),
@@ -429,7 +69,7 @@ function push!(B::BinnerA, value::Float64)
 
         # once output is full, add compressor and drop one level
         else
-            push!(B.compressors, Compressor(0., UInt8(0)))
+            push!(B.compressors, BinningCompressor(0., UInt8(0)))
             push!(B.x_sum, 0.)
             push!(B.x2_sum, 0.)
             push!(B.count, 0)
@@ -451,7 +91,7 @@ function push!(B::BinnerA, value::Float64)
 
         # if output is full, add new level and drop down
         else
-            push!(B.compressors, Compressor(0., UInt8(0)))
+            push!(B.compressors, BinningCompressor(0., UInt8(0)))
             push!(B.x_sum, 0.)
             push!(B.x2_sum, 0.)
             push!(B.count, 0)
@@ -617,4 +257,52 @@ function jackknife(f::Function, args...)
     # outputs mean and standard deviation of the distribution of means (which
     # is the standard error of ys)
     y0, sqrt((N-1) / N * sum((y_avs - y0).^2))
+end
+
+
+################################################################################
+#### Thermalization time-averaging
+################################################################################
+
+# Take some data and compute local averages
+#
+
+mutable struct Compressor
+    compression::Int64
+    invN::Float64
+    count::Int64
+    sum::Float64
+    values::Vector{Float64}
+end
+
+
+function Compressor(compression::Int64 = 1_000)
+    Compressor(
+        compression,
+        1.0 / compression,
+        0,
+        0.0,
+        Float64[]
+    )
+end
+
+function push!(c::Compressor, value::Float64)
+    if c.count == c.compression
+        push!(c.values, c.sum * c.invN)
+        c.sum = value
+        c.count = 1
+    else
+        c.sum += value
+        c.count += 1
+    end
+    nothing
+end
+
+function output(c::Compressor)
+    if c.count != 0
+        push!(c.values, c.sum / c.count)
+        c.count = 0
+        c.sum = 0.0
+    end
+    c.values
 end

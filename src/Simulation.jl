@@ -5,36 +5,39 @@ function thermalize!(
         Js::Vector{Tuple{Float64, Float64}},
         thermalizer::AbstractThermalizationMethod,
         h::Point3{Float64},
-        g::Float64
+        g::Float64,
+        E_comp::Compressor
     )
     # print("correct\n")
     init_edges!(sgraph, spins)
+    E_tot = totalEnergy(sgraph, spins, Js, h, g)
 
     if is_parallel(thermalizer)
-        E_tot = totalEnergy(sgraph, spins, Js, h, g)
         beta, state = initialize(thermalizer, T, sgraph, spins)
         while !done(thermalizer, state)
             E_tot = sweep(sgraph, spins, E_tot, Js, beta, h, g)
             beta, E_tot, state = next(thermalizer, state, E_tot)
+            push!(E_comp, E_tot)
             yield()
-        end
-
-        # NOTE Safety check, to be removed
-        init_edges!(sgraph, spins)
-        E_check = totalEnergy(sgraph, spins, Js, h, g)
-        if !(E_tot ≈ E_check)
-            warn("E_tot inconsistent after thermalization. $E_tot =/= $(E_check)")
-            warn("On process #$(MPI.Comm_rank(MPI.COMM_WORLD))")
-            MPI.Finalize()
-            exit()
         end
     else
         beta, state = initialize(thermalizer, T)
         while !done(thermalizer, state)
-            sweep(sgraph, spins, Js, beta, h, g)
+            E_tot = sweep(sgraph, spins, E_tot, Js, beta, h, g)
             beta, state = next(thermalizer, state)
+            push!(E_comp, E_tot)
             yield()
         end
+    end
+
+    # NOTE Safety check, to be removed
+    init_edges!(sgraph, spins)
+    E_check = totalEnergy(sgraph, spins, Js, h, g)
+    if !(E_tot ≈ E_check)
+        warn("E_tot inconsistent after thermalization. $E_tot =/= $(E_check)")
+        warn("On process #$(MPI.Comm_rank(MPI.COMM_WORLD))")
+        MPI.Finalize()
+        exit()
     end
 
     last(thermalizer, state)
@@ -48,35 +51,38 @@ function thermalize_no_paths!(
         Js::Vector{Tuple{Float64, Float64}},
         thermalizer::AbstractThermalizationMethod,
         h::Point3{Float64},
-        g::Float64
+        g::Float64,
+        E_comp::Compressor
     )
     init_edges!(sgraph, spins)
+    E_tot = totalEnergy(sgraph, spins, Js, h, g)
 
     if is_parallel(thermalizer)
-        E_tot = totalEnergy(sgraph, spins, Js, h, g)
         beta, state = initialize(thermalizer, T, sgraph, spins)
         while !done(thermalizer, state)
             E_tot = sweep_no_paths(sgraph, spins, E_tot, Js, beta, h, g)
             beta, E_tot, state = next(thermalizer, state, E_tot)
+            push!(E_comp, E_tot)
             yield()
-        end
-
-        # NOTE Safety check, to be removed
-        init_edges!(sgraph, spins)
-        E_check = totalEnergy(sgraph, spins, Js, h, g)
-        if !(E_tot ≈ E_check)
-            warn("E_tot inconsistent after thermalization. $E_tot =/= $(E_check)")
-            warn("On process #$(MPI.Comm_rank(MPI.COMM_WORLD))")
-            MPI.Finalize()
-            exit()
         end
     else
         beta, state = initialize(thermalizer, T)
         while !done(thermalizer, state)
-            sweep_no_paths(sgraph, spins, Js, beta, h, g)
+            E_tot = sweep_no_paths(sgraph, spins, E_tot, Js, beta, h, g)
             beta, state = next(thermalizer, state)
+            push!(E_comp, E_tot)
             yield()
         end
+    end
+
+    # NOTE Safety check, to be removed
+    init_edges!(sgraph, spins)
+    E_check = totalEnergy(sgraph, spins, Js, h, g)
+    if !(E_tot ≈ E_check)
+        warn("E_tot inconsistent after thermalization. $E_tot =/= $(E_check)")
+        warn("On process #$(MPI.Comm_rank(MPI.COMM_WORLD))")
+        MPI.Finalize()
+        exit()
     end
 
     last(thermalizer, state)
@@ -89,35 +95,38 @@ function thermalize!(
         T::Float64,
         Js::Vector{Tuple{Float64, Float64}},
         thermalizer::AbstractThermalizationMethod,
-        h::Point3{Float64}
+        h::Point3{Float64},
+        E_comp::Compressor
     )
     init_edges!(sgraph, spins)
+    E_tot = totalEnergy(sgraph, spins, Js, h)
 
     if is_parallel(thermalizer)
-        E_tot = totalEnergy(sgraph, spins, Js, h)
         beta, state = initialize(thermalizer, T, sgraph, spins)
         while !done(thermalizer, state)
             E_tot = sweep(sgraph, spins, E_tot, Js, beta, h)
             beta, E_tot, state = next(thermalizer, state, E_tot)
+            push!(E_comp, E_tot)
             yield()
-        end
-
-        # NOTE Safety check, to be removed
-        init_edges!(sgraph, spins)
-        E_check = totalEnergy(sgraph, spins, Js, h)
-        if !(E_tot ≈ E_check)
-            warn("E_tot inconsistent after thermalization. $E_tot =/= $(E_check)")
-            warn("On process #$(MPI.Comm_rank(MPI.COMM_WORLD))")
-            MPI.Finalize()
-            exit()
         end
     else
         beta, state = initialize(thermalizer, T)
         while !done(thermalizer, state)
-            sweep(sgraph, spins, Js, beta, h)
+            E_tot = sweep(sgraph, spins, E_tot, Js, beta, h)
             beta, state = next(thermalizer, state)
+            push!(E_comp, E_tot)
             yield()
         end
+    end
+
+    # NOTE Safety check, to be removed
+    init_edges!(sgraph, spins)
+    E_check = totalEnergy(sgraph, spins, Js, h)
+    if !(E_tot ≈ E_check)
+        warn("E_tot inconsistent after thermalization. $E_tot =/= $(E_check)")
+        warn("On process #$(MPI.Comm_rank(MPI.COMM_WORLD))")
+        MPI.Finalize()
+        exit()
     end
 
     last(thermalizer, state)
@@ -166,17 +175,21 @@ function simulate!(
         T = 1e-10
     end
 
+    # TODO
+    # Add a variable to control the compression level here?
+    E_comp = Compressor(1000)
+
     if g == 0.0
         beta = thermalize!(
-            sgraph, spins, T, Js, thermalizer, h
+            sgraph, spins, T, Js, thermalizer, h, E_comp
         )
     elseif (Js[3][1] == Js[3][2] == 0.0) || (Js[4][1] == Js[4][2] == 0.0)
         beta = thermalize_no_paths!(
-            sgraph, spins, T, Js, thermalizer, h, g
+            sgraph, spins, T, Js, thermalizer, h, g, E_comp
         )
     else
         beta = thermalize!(
-            sgraph, spins, T, Js, thermalizer, h, g
+            sgraph, spins, T, Js, thermalizer, h, g, E_comp
         )
     end
 
@@ -202,6 +215,8 @@ function simulate!(
         batch_size(thermalizer),
         adaptive_sample_size(thermalizer)
     )
+
+    write_Comp!(file, E_comp, "E-th ")
 
     # Measurement
     if g == 0.0
