@@ -61,7 +61,7 @@ include("ThermalizationMethods.jl")
 export parallel_tempering
 export Freezer, ConstantT
 export ProbabilityEqualizer
-export initialize, next, done, last
+export initialize, next, done, last, length, T_max, current_index
 
 # Binning Analysis, Jackknife, histograms
 include("DataAnalysis.jl")

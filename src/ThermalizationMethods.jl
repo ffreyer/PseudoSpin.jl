@@ -151,10 +151,10 @@ struct ConstantT <: AbstractTemperatureGenerator
 end
 ConstantT(; N::Int64=0, kwargs...) = ConstantT(N)
 
-initialize(th::ConstantT, T::Float64) = 1.0 / T, (1.0 / T, 1)
+initialize(th::ConstantT, T::Float64) = 1.0 / T, (1.0 / T, 0)
 next(::ConstantT, state::Tuple{Float64, Int64}) = (state[1], (state[1], state[2]+1))
-current_index(::ConstantT, state::Tuple{Float64, Float64}) = state[2]
-done(th::ConstantT, state::Tuple{Float64, Int64}) = state[2] > th.N
+current_index(::ConstantT, state::Tuple{Float64, Int64}) = state[2]
+done(th::ConstantT, state::Tuple{Float64, Int64}) = state[2] >= th.N
 last(::ConstantT, state::Tuple{Float64, Int64}) = state[1]
 length(th::ConstantT) = th.N
 
