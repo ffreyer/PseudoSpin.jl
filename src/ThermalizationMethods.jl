@@ -359,7 +359,7 @@ function (::Type{ProbabilityEqualizer{TGen}})(;
         kwargs...
     )  where TGen <: AbstractTemperatureGenerator
     Tgen = TGen(; kwargs...)
-    ParallelTempering(
+    ProbabilityEqualizer(
         Tgen,
         batch_size,
         div(length(Tgen), adaptive_sample_size),
@@ -379,16 +379,13 @@ function initialize(
     switch = 0
     beta, Tgen_state = initialize(th.Tgen, T)
 
-    return beta, (
-        Tgen_state,
-        cum_prob, N_prob, sgraph, spins, switch
-    )
+    return beta, (Tgen_state, cum_prob, N_prob, sgraph, spins, switch)
 end
 
 function next(th::ProbabilityEqualizer, state::Tuple, E_tot::Float64)
     comm = MPI.COMM_WORLD
-    comm_size = MPI.comm_size(comm)
-    comm_rank = MPI.comm_rank(comm)
+    comm_size = MPI.Comm_size(comm)
+    comm_rank = MPI.Comm_rank(comm)
 
     Tgen_state, cum_prob, N_prob, sgraph, spins, switch = state
     beta, Tgen_state = next(th.Tgen, Tgen_state)
