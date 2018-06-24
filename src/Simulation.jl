@@ -46,12 +46,9 @@ function thermalize_no_paths!(
         spins::Vector{Point3{Float64}},
         T::Float64,
         Js::Vector{Tuple{Float64, Float64}},
-        TH_method::AbstractThermalizationMethod,
+        thermalizer::AbstractThermalizationMethod,
         h::Point3{Float64},
-        g::Float64,
-        do_pt::Bool,
-        do_adaptive::Bool,
-        batch_size::Int64
+        g::Float64
     )
     init_edges!(sgraph, spins)
 
@@ -91,16 +88,13 @@ function thermalize!(
         spins::Vector{Point3{Float64}},
         T::Float64,
         Js::Vector{Tuple{Float64, Float64}},
-        TH_method::AbstractThermalizationMethod,
-        h::Point3{Float64},
-        do_pt::Bool,
-        do_adaptive::Bool,
-        batch_size::Int64
+        thermalizer::AbstractThermalizationMethod,
+        h::Point3{Float64}
     )
     init_edges!(sgraph, spins)
 
     if is_parallel(thermalizer)
-        E_tot = totalEnergy(sgraph, spins, Js, h, g)
+        E_tot = totalEnergy(sgraph, spins, Js, h)
         beta, state = initialize(thermalizer, T, sgraph, spins)
         while !done(thermalizer, state)
             E_tot = sweep(sgraph, spins, E_tot, Js, beta, h)
@@ -110,7 +104,7 @@ function thermalize!(
 
         # NOTE Safety check, to be removed
         init_edges!(sgraph, spins)
-        E_check = totalEnergy(sgraph, spins, Js, h, g)
+        E_check = totalEnergy(sgraph, spins, Js, h)
         if !(E_tot ≈ E_check)
             warn("E_tot inconsistent after thermalization. $E_tot =/= $(E_check)")
             warn("On process #$(MPI.Comm_rank(MPI.COMM_WORLD))")
