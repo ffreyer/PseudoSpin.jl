@@ -291,10 +291,10 @@ function initialize(
         T::Float64,
         sgraph::SGraph,
         spins::Vector{Point3{Float64}},
-        E_tot::Float64
+        # E_tot::Float64
     )
     beta, Tgen_state = initialize(th.Tgen, T)
-    return beta, (Tgen_state, sgraph, spins, E_tot, 0)
+    return beta, (Tgen_state, sgraph, spins, 0)
 end
 
 function next(
@@ -302,7 +302,7 @@ function next(
         state::Tuple,
         E_tot::Float64
     )
-    Tgen_state, sgraph, spins, E_tot, switch = state
+    Tgen_state, sgraph, spins, switch = state
     beta, Tgen_state = next(th.Tgen, Tgen_state)
     i = current_index(th.Tgen, Tgen_state)
 
@@ -314,7 +314,7 @@ function next(
     end
 
     return beta, E_tot, (
-        Tgen_state, sgraph, spins, E_tot, switch
+        Tgen_state, sgraph, spins, switch
     )
 end
 
@@ -372,8 +372,7 @@ function initialize(
         th::ProbabilityEqualizer,
         T::Float64,
         sgraph::SGraph,
-        spins::Vector{Point3{Float64}},
-        E_tot::Float64
+        spins::Vector{Point3{Float64}}
     )
     cum_prob = 0.0
     N_prob = 0
@@ -382,16 +381,16 @@ function initialize(
 
     return beta, (
         Tgen_state,
-        cum_prob, N_prob, sgraph, spins, E_tot, switch
+        cum_prob, N_prob, sgraph, spins, switch
     )
 end
 
-function next(th::ProbabilityEqualizer, state, E_tot::Float64)
+function next(th::ProbabilityEqualizer, state::Tuple, E_tot::Float64)
     comm = MPI.COMM_WORLD
     comm_size = MPI.comm_size(comm)
     comm_rank = MPI.comm_rank(comm)
 
-    Tgen_state, cum_prob, N_prob, sgraph, spins, E_tot, switch = state
+    Tgen_state, cum_prob, N_prob, sgraph, spins, switch = state
     beta, Tgen_state = next(th.Tgen, Tgen_state)
     i = current_index(th.Tgen, Tgen_state)
 
@@ -444,11 +443,7 @@ function next(th::ProbabilityEqualizer, state, E_tot::Float64)
         N_prob = 0
     end
 
-    return beta, E_tot, (
-        Tgen_state,
-        cum_prob, N_prob,
-        sgraph, spins, E_tot, switch,
-    )
+    return beta, E_tot, (Tgen_state, cum_prob, N_prob, sgraph, spins, switch)
 end
 
 current_index(th::ProbabilityEqualizer, state) = current_index(th.Tgen, state[1])

@@ -11,11 +11,8 @@ function thermalize!(
     init_edges!(sgraph, spins)
 
     if is_parallel(thermalizer)
-        beta, state = initialize(
-            thermalizer, T,
-            sgraph, spins,
-            totalEnergy(sgraph, spins, Js, h, g)
-        )
+        E_tot = totalEnergy(sgraph, spins, Js, h, g)
+        beta, state = initialize(thermalizer, T, sgraph, spins)
         while !done(thermalizer, state)
             E_tot = sweep(sgraph, spins, E_tot, Js, beta, h, g)
             beta, E_tot, state = next(thermalizer, state, E_tot)

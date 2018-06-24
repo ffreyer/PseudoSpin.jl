@@ -60,6 +60,7 @@ export kernel, sweep
 include("ThermalizationMethods.jl")
 export parallel_tempering
 export Freezer, ConstantT
+export NoParallelTempering, ParallelTempering
 export ProbabilityEqualizer
 export initialize, next, done, last, length, T_max, current_index
 
