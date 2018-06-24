@@ -11,7 +11,7 @@ function thermalize!(
     init_edges!(sgraph, spins)
 
     if is_parallel(thermalizer)
-        state = initialize(
+        beta, state = initialize(
             thermalizer, T,
             sgraph, spins,
             totalEnergy(sgraph, spins, Js, h, g)
@@ -31,7 +31,7 @@ function thermalize!(
             exit()
         end
     else
-        state = initialize(thermalizer, T)
+        beta, state = initialize(thermalizer, T)
         while !done(thermalizer, state)
             sweep(sgraph, spins, Js, beta, h, g)
             beta, state = next(thermalizer, state)
@@ -256,7 +256,7 @@ function simulate!(
     end
 
     write_header!(
-        file, 1, length(thermalizer), last(thermalizer), ME_sweeps, sys_size,
+        file, 1, length(thermalizer), T_max(thermalizer), ME_sweeps, sys_size,
         Int64(sgraph.N_nodes), sgraph.K_edges, Js, h, g, max(0.0, 1.0 / beta), #T,
         is_parallel(thermalizer),
         batch_size(thermalizer),
@@ -386,17 +386,28 @@ function simulate!(;
         ],
         h::Point3{Float64} = Point3(0.),
         g::Float64 = 0.,
-        # Thermalization/Measurement parameters
+        # Thermalization - Temperature generator
         TH_sweeps::Int64 = 2_000_000,
         N_switch::Int64 = div(TH_sweeps, 2),
         Freeze_temperature::Float64 = 1.5*maximum(Ts),
-        # batch_size::Int64 = 1000,
-        # adaptive_sample_size::Int64 = 100batch_size,
-        thermalizer::AbstractThermalizationMethod = Freezer(
+        TGen_method::Type{<:AbstractTemperatureGenerator} = Freezer,
+        # Thermalization - Parallel Tempering
+        batch_size::Int64 = 10,
+        adaptive_sample_size::Int64 = 100batch_size,
+        thermalizer_method::Type{
+            <:AbstractParallelTemperingAlgorithm
+        } = NoParallelTempering,
+        # Thermalization - build thermalizer
+        thermalizer::AbstractThermalizationMethod = thermalizer_method{
+            TGen_method
+        }(
             N = TH_sweeps,
+            N_switch = N_switch,
             T_max = Freeze_temperature,
-            N_switch = N_switch
+            batch_size = batch_size,
+            adaptive_sample_size = adaptive_sample_size
         ),
+        # Measurement
         ME_sweeps::Int64 = 5_000_000
     )
 

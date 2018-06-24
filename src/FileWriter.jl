@@ -20,10 +20,11 @@ function write_header!(
         g::Float64,
         T::Float64,
         do_parallel_tempering::Bool,
-        batch_size::Int64
+        batch_size::Int64,
+        adaptive_sample_size::Int64
     )
 
-    write(file, "V04")
+    write(file, "V05")
     write(file, N_points)
     write(file, TH_sweeps)
     write(file, TH_Temp)
@@ -42,9 +43,10 @@ function write_header!(
     for _h in h; write(file, _h) end
     write(file, g)
     write(file, T)
-    
+
     write(file, do_parallel_tempering)
     write(file, batch_size)
+    write(file, adaptive_sample_size)
 
     nothing
 end

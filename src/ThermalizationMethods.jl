@@ -140,6 +140,9 @@ function length() end
 batch_size(::AbstractThermalizationMethod) = -1
 adaptive_sample_size(::AbstractThermalizationMethod) = -1
 
+# Some methods, like ConstantT, don't have a "T_max"
+T_max(::AbstractThermalizationMethod) = -1.0
+
 #######################
 
 
@@ -148,7 +151,7 @@ struct ConstantT <: AbstractTemperatureGenerator
 end
 ConstantT(; N::Int64=0, kwargs...) = ConstantT(N)
 
-initialize(th::ConstantT, T::Float64) = (1.0 / T, 1)
+initialize(th::ConstantT, T::Float64) = 1.0 / T, (1.0 / T, 1)
 next(::ConstantT, state::Tuple{Float64, Int64}) = (state[1], (state[1], state[2]+1))
 current_index(::ConstantT, state::Tuple{Float64, Float64}) = state[2]
 done(th::ConstantT, state::Tuple{Float64, Int64}) = state[2] > th.N
@@ -159,7 +162,7 @@ length(th::ConstantT) = th.N
 #######################
 
 
-struct Freezer
+struct Freezer <: AbstractTemperatureGenerator
     N::Int64
     N_switch::Int64
     N_per_exp::Int64
@@ -200,7 +203,7 @@ function Freezer(;
 end
 
 function initialize(th::Freezer, T_min::Float64)
-    (
+    1.0 / th.T_max, (
         0,
         1,
         1,
@@ -234,6 +237,7 @@ current_index(::Freezer, state::Tuple) = state[1]
 done(th::Freezer, state::Tuple) = state[1] >= th.N
 last(::Freezer, state::Tuple) = state[end]
 length(th::Freezer) = th.N
+T_max(th::Freezer) = th.T_max
 
 
 ##############################################
@@ -248,12 +252,38 @@ so they should just spawm a pt...
 ##############################################
 
 
+# This is a dummy to construct TGen without a ParallelTemperingAlgirthm
+struct NoParallelTempering{
+        TGen <: AbstractTemperatureGenerator
+    } <: AbstractParallelTemperingAlgorithm
+    x::Int64
+end
+function (::Type{NoParallelTempering{TGen}})(;
+        kwargs...
+    ) where TGen <: AbstractTemperatureGenerator
+    TGen(; kwargs...)
+end
+
+
+#######################
+
+
 struct ParallelTempering{
         ATG <: AbstractTemperatureGenerator
     }  <: AbstractParallelTemperingAlgorithm
 
     Tgen::ATG
     batch_size::Int64
+end
+
+function (::Type{ParallelTempering{TGen}})(;
+        batch_size::Int64 = 10,
+        kwargs...
+    )  where TGen <: AbstractTemperatureGenerator
+    ParallelTempering(
+        TGen(; kwargs...),
+        batch_size
+    )
 end
 
 function initialize(
@@ -263,8 +293,8 @@ function initialize(
         spins::Vector{Point3{Float64}},
         E_tot::Float64
     )
-    Tgen_state = initialize(th.Tgen, T)
-    return (Tgen_state, sgraph, spins, E_tot, 0)
+    beta, Tgen_state = initialize(th.Tgen, T)
+    return beta, (Tgen_state, sgraph, spins, E_tot, 0)
 end
 
 function next(
@@ -293,6 +323,7 @@ done(th::ParallelTempering, state::Tuple) = done(th.Tgen, state[1])
 last(th::ParallelTempering, state::Tuple) = last(th.Tgen, state[1])
 length(th::ParallelTempering) = length(th.Tgen)
 batch_size(th::ParallelTempering) = th.batch_size
+T_max(th::ParallelTempering) = T_max(th.Tgen)
 
 
 #######################
@@ -308,13 +339,27 @@ struct ProbabilityEqualizer{
     adaptive_sample_size::Int64
 end
 
-function ProbabilityEqualizer(
-        Tgen::ATG,
-        batch_size::Int64,
-        adaptive_sample_size::Int64
-    ) where {ATG <: AbstractTemperatureGenerator}
+# function ProbabilityEqualizer(
+#         Tgen::ATG,
+#         batch_size::Int64,
+#         adaptive_sample_size::Int64
+#     ) where {ATG <: AbstractTemperatureGenerator}
+#
+#     return ProbabilityEqualizer(
+#         Tgen,
+#         batch_size,
+#         div(length(Tgen), adaptive_sample_size),
+#         adaptive_sample_size
+#     )
+# end
 
-    return ProbabilityEqualizer(
+function (::Type{ProbabilityEqualizer{TGen}})(;
+        batch_size::Int64 = 10,
+        adaptive_sample_size::Int64 = 100batch_size,
+        kwargs...
+    )  where TGen <: AbstractTemperatureGenerator
+    Tgen = TGen(; kwargs...)
+    ParallelTempering(
         Tgen,
         batch_size,
         div(length(Tgen), adaptive_sample_size),
@@ -333,9 +378,9 @@ function initialize(
     cum_prob = 0.0
     N_prob = 0
     switch = 0
-    Tgen_state = initialize(th.Tgen, T)
+    beta, Tgen_state = initialize(th.Tgen, T)
 
-    return (
+    return beta, (
         Tgen_state,
         cum_prob, N_prob, sgraph, spins, E_tot, switch
     )
@@ -412,6 +457,8 @@ last(th::ProbabilityEqualizer, state) = last(th.Tgen, state[1])
 length(th::ProbabilityEqualizer) = length(th.Tgen)
 batch_size(th::ProbabilityEqualizer) = th.batch_size
 adaptive_sample_size(th::ProbabilityEqualizer) = th.adaptive_sample_size
+T_max(th::ProbabilityEqualizer) = T_max(th.Tgen)
+
 
 ################################################################################
 
