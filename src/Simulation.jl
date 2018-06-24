@@ -349,6 +349,7 @@ function simulate!(;
         # Thermalization - Parallel Tempering
         batch_size::Int64 = 10,
         adaptive_sample_size::Int64 = 100batch_size,
+        skip::Int64 = div(TH_sweeps, 2),
         thermalizer_method::Type{
             <:AbstractParallelTemperingAlgorithm
         } = NoParallelTempering,
@@ -360,7 +361,8 @@ function simulate!(;
             N_switch = N_switch,
             T_max = Freeze_temperature,
             batch_size = batch_size,
-            adaptive_sample_size = adaptive_sample_size
+            adaptive_sample_size = adaptive_sample_size,
+            skip = skip
         ),
         # Measurement
         ME_sweeps::Int64 = 5_000_000

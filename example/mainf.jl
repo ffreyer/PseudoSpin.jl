@@ -62,6 +62,8 @@ for argline in eachline(argfile)
         push!(kwargs, :batch_size => parse(Int64, args[2]))
     elseif args[1] == "adaptive_sample_size"
         push!(kwargs, :adaptive_sample_size => parse(Int64, args[2]))
+    elseif args[1] == "skip"
+        push!(kwargs, :skip => parse(Int64, args[2]))
 
     elseif startswith(args[1], "spins") || startswith(args[1],"spin")
         println("TODO: custom initial spin vectors")

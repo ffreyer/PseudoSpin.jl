@@ -335,6 +335,7 @@ struct ProbabilityEqualizer{
     # PT::ParallelTempering{<:AbstractTemperatureGenerator}
     Tgen::ATG
     batch_size::Int64
+    skip::Int64
     M::Int64
     adaptive_sample_size::Int64
 end
@@ -354,15 +355,21 @@ end
 # end
 
 function (::Type{ProbabilityEqualizer{TGen}})(;
+        skip::Int64 = -1,
         batch_size::Int64 = 10,
         adaptive_sample_size::Int64 = 100batch_size,
         kwargs...
     )  where TGen <: AbstractTemperatureGenerator
     Tgen = TGen(; kwargs...)
+    if skip == -1
+        skip = div(length(Tgen), 2)
+    end
+    skip = div(skip, adaptive_sample_size)
     ProbabilityEqualizer(
         Tgen,
         batch_size,
-        div(length(Tgen), adaptive_sample_size),
+        skip,
+        div(length(Tgen), adaptive_sample_size) - skip,
         adaptive_sample_size
     )
 end
@@ -403,9 +410,9 @@ function next(th::ProbabilityEqualizer, state::Tuple, E_tot::Float64)
     end
 
     if i % th.adaptive_sample_size == 0
-        k = div(i, th.adaptive_sample_size)
+        k = div(i, th.adaptive_sample_size) - th.skip
 
-        if k > 1
+        if k > 0
             MPI.Barrier(comm)
             p = N_prob == 0 ? 0.0 : cum_prob / N_prob
             probs = MPI.Allgather(p, comm)
