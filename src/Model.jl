@@ -138,281 +138,8 @@ end
 
 
 ################################################################################
-#### new stack
+### scalar product stuff
 ################################################################################
-
-# PLAN
-# - generate methods such as sweepJ1J2g(..., J1, J2, K, g, h) specialized for
-#   arguments J1, J2, g (silently assuming that K, h are irrelevant/0.0)
-#   *
-# - generate/write sweep_picker(; J1 = 0.0, ...) which return the correct sweep
-#   * call this early so that later calls of sweep() are efficient
-#       (see pass_function_perf.jl in random_things for performance analysis)
-#   * update all sweep/spin_flip (kernel)/deltaEnergy calls to have some
-#       normal ordering. Maybe this would be easier with a Container struct?
-#       Efficiency is fine
-struct Parameters
-    J1::Tuple{Float64, Float64}
-    J2::Tuple{Float64, Float64}
-    K::Float64
-    g::Float64
-    h::Point3{Float64}
-end
-function Parameters(;
-        J1::Tuple{Float64, Float64} = (0.0, 0.0),
-        J2::Tuple{Float64, Float64} = (0.0, 0.0),
-        K::Float64 = 0.0,
-        g::Float64 = 0.0,
-        h::Point3{Float64} = Point3(0.0)
-    )
-    Parameters(J1, J2, K, g, h)
-end
-
-# normal order required!
-param_groups = [
-    (:J1, :J2, :K, :g, :h),
-    # ...
-]
-
-function sweep_picker()
-end
-
-# Code Generation
-for param_group in param_groups
-    # generate sweep function
-    @eval begin
-        # Function names such as sweep_J1J2g
-        function $(Symbol(:sweep_, param_group...))(
-                sgraph::Sgraph,
-                spin::Vector{Point3{Float64}},
-                E_tot::Float64,
-                beta::Float64,
-                param::Parameters
-            )
-            for (i, new_spin) in zip(
-                    rand(1:sgraph.N_nodes, sgraph.N_nodes),
-                    rand_spin(sgraph.N_nodes)
-                )
-                # calls spin_flip_J1J2g
-                E_tot = $(Symbol(:spin_flip_, param_group...))(
-                    sgraph, spins, i, new_spin, E_tot, beta, param
-                )
-            end
-
-            E_tot
-        end
-    end
-
-    # generate spin_flip function
-    @eval begin
-        function $(Symbol(:spin_flip_, param_group...))(
-                sgraph::SGraph,
-                spins::Vector{Point3{Float64}},
-                i::Int64,
-                new_spin::Point3{Float64},
-                E_tot::Float64,
-                beta::Float64,
-                param::Parameters
-            )
-            @inbound n = sgraph.nodes[i]
-            xys, zs = generate_scalar_products(sgraph, spins, i, new_spin)
-            dE = $(Symbol(:deltaEnergy_, param_group...))(
-                n, spins, i, new_spin, xys, zs, param
-            )
-
-            if dE < 0.
-                @inbounds spins[i] = new_spin
-                update_edges!(n, xys, zs)
-                return E_tot + dE
-            elseif rand() < exp(-dE * beta)
-                @inbounds spins[i] = new_spin
-                update_edges!(n, xys, zs)
-                return E_tot + dE
-            end
-
-            E_tot
-        end
-    end
-
-    # deltaEnergy function
-    doJ1 = :J1 in param_group
-    doJ2 = :J2 in param_group
-    doK = :K in param_group
-    dog = :g in param_group
-    doh = :h in param_group
-
-    # either use these before hand and do something like
-    # $(doJ1 && init_J1)
-    # in the function or (untested) quote the blocks in the function, e.g.
-    # $(doJ1 && quote
-    #   J1_xy = 0.
-    #   J1_z = 0.
-    # end)
-    # init_J1 = quote
-    #
-    # end
-    #
-    # init_K = quote
-    #
-    # end
-
-
-
-    @eval begin
-        function $(Symbol(:deltaEnergy_, param_group...))(
-                n::SNode,
-                spins::Vector{Point3{Float64}},
-                i::Int64,
-                new_spin::Point3{Float64},
-                xys::Vector{Float64},
-                zs::Vector{Float64},
-                param::Parameters
-            )
-
-            # J1 terms
-            J1_xy = 0.
-            J1_z = 0.
-
-            # J2 terms
-            # can reuse J1_xy, J1_z if bunched with J2 part
-            J2_xy = 0.
-            J2_z = 0.
-
-            # K terms
-            K_xyz = 0.
-            # K_xy = 0.   # (x)
-            # K_z = 0.    # (x)
-
-
-            # for g, h, J2
-            delta_s = new_spin .- spins[i]
-
-            # J1, K, g
-            # TODO: g
-            for j in 1:4 #(xy, z, j) in zip(xys, zs, eachindex(n.first))
-                xy = xys[j]
-                z = zs[j]
-
-                # J1, K
-                @inbounds e = n.first[j]
-                @fastmath dxy = xy - e.xy
-                @fastmath dz = z - e.z
-
-                # J1 only
-                @fastmath J1_xy += dxy        # xy - e.xy
-                @fastmath J1_z += dz          # z - e.z
-
-                # K only
-                @fastmath temp_xy = 0.
-                @fastmath temp_z = 0.
-                for p in n.paths[j]
-                    @fastmath temp_xy += p.xy
-                    @fastmath temp_z += p.z
-                end
-                @fastmath K_xyz += dxy * temp_z + dz * temp_xy  # (keep)
-                # @fastmath K_xy += dxy * temp_xy                 # (x)
-                # @fastmath K_z += dz * temp_z                    # (x)
-            end
-            @fastmath @inbounds dE = begin
-                Js[1][1] * xy1 +                    # J1[1]
-                Js[1][2] * z1 +                     # J1[2]
-                2 * (                               # K here
-                    # Js[3][1] * Js[4][1] * xy3 +     # K * 0     (x)
-                    # Js[3][2] * Js[4][2] * z3        # 0 * 1     (x)
-                # ) + (
-                    Js[3][1] * Js[4][2] +           # k * 1     (keep)
-                    # Js[3][2] * Js[4][1]             # 0 * 1     (x)
-                ) * xyz3
-                # g * temp                            # g here
-            end
-
-            # J2
-            for j in n.second
-                @fastmath @inbounds J2_xy += delta_s[1] * spins[j][1] +
-                                             delta_s[2] * spins[j][2]
-                @fastmath @inbounds J2_z += delta_s[3] * spins[j][3]
-            end
-            @fastmath @inbounds dE += Js[2][1] * xy1 + Js[2][2] * z1
-
-            # g-paths
-            # original: ∑∑∑ xxy + xyx + yxx - yyy
-            # affected spins: o-a-b, a-o-b, where o is flipped
-            # Notation: dx is flipped, sum over paths (o-a-b, a-o-b) implied
-            # o-a-b: dx(xy)   + dx(yx)   + dy(xx)   - dy(yy)
-            # a-o-b: (x)dx(y) + (x)dy(x) + (y)dx(x) - y(dy)y
-            # notation: 1 means o-a-b term, 2 means a-o-b term
-            # dx * [(xy)1 + (yx)1 + (xy)2 + (yx)2]
-            # dy * [(xx)1 - (yy)1 + (xx)2 - (yy)2]
-            # Note symmetry - we can loop over (o-a-b) and (a-o-b) terms here
-            # further bracketing:
-            # dx * [x1 * (y1 + y2) + y1 * (x1 + x2)]
-            # dy * [x1 * (x1 + x2) - y1 * (y1 + y2)]
-            # Note dublicate terms - we only need to compute two inner brackets
-            g_x__ = 0.  # [x1 * g___y + y1 * g___x]
-            g_y__ = 0.  # [x1 * g___x - y1 * g___y]
-            for gedge in n.gpaths   # 4
-                g___x = 0.  # (x1 + x2)
-                g___y = 0.  # (y1 + y2)
-                for bi in gedge.bs  # 6 5 4 3
-                    @inbounds s2 = spins[bi]
-                    @fastmath @inbounds g___x += s2[1]
-                    @fastmath @inbounds g___y += s2[2]
-                end
-                @inbounds s1 = spins[gedge.a]
-                @fastmath @inbounds g_x__ += s1[1] * g___y + s1[2] * g___x
-                @fastmath @inbounds g_y__ += s1[1] * g___x - s1[2] * g___y
-            end
-            @fastmath @inbounds dE += g *
-                (delta_s[1] * g_x__ + delta_s[2] * g_y__)
-
-            # h
-            @fastmath @inbounds dE -= dot(h, delta_s)
-        end
-    end
-end
-
-
-# For reference: g-paths
-# TODO: find paths in sgraph; remove searching here
-# @inbounds sj = n.first[j].n1 != i ? n.first[j].n1 : n.first[j].n2
-# @fastmath @inbounds dxxyy = delta_s[1] * spins[sj][1] -
-#                             delta_s[2] * spins[sj][2]
-# @fastmath @inbounds dxyyx = delta_s[1] * spins[sj][2] +
-#                             delta_s[2] * spins[sj][1]
-#
-# x = 0.
-# y = 0.
-#
-# # second part (x - a - b)
-# for k in 1:4
-#     @inbounds _n = sgraph.nodes[sj]
-#     @inbounds n.first[j] == _n.first[k] && continue
-#     @inbounds sk = if _n.first[k].n1 != sj
-#         _n.first[k].n1
-#     else
-#         _n.first[k].n2
-#     end
-#     @fastmath @inbounds x += spins[sk][1]
-#     @fastmath @inbounds y += spins[sk][2]
-# end
-#
-# # second part (b - x - a)
-# for k in j+1:4
-#     @inbounds sk = if n.first[k].n1 != i
-#         n.first[k].n1
-#     else
-#         n.first[k].n2
-#     end
-#     @fastmath @inbounds x += spins[sk][1]
-#     @fastmath @inbounds y += spins[sk][2]
-# end
-#
-# @fastmath g_temp += dxxyy * y + dxyyx * x
-
-################################################################################
-#### single spin flip kernels
-################################################################################
-
 
 
 """
@@ -471,6 +198,337 @@ function update_edges!(n::SNode, xys::Vector{Float64}, zs::Vector{Float64})
 end
 
 
+################################################################################
+#### new stack
+################################################################################
+
+# PLAN
+# - generate methods such as sweepJ1J2g(..., J1, J2, K, g, h) specialized for
+#   arguments J1, J2, g (silently assuming that K, h are irrelevant/0.0)
+#   *
+# - generate/write sweep_picker(; J1 = 0.0, ...) which return the correct sweep
+#   * call this early so that later calls of sweep() are efficient
+#       (see pass_function_perf.jl in random_things for performance analysis)
+#   * update all sweep/spin_flip (kernel)/deltaEnergy calls to have some
+#       normal ordering. Maybe this would be easier with a Container struct?
+#       Efficiency is fine
+struct Parameters
+    J1::Tuple{Float64, Float64}
+    J2::Tuple{Float64, Float64}
+    K::Float64
+    g::Float64
+    h::Point3{Float64}
+end
+function Parameters(;
+        J1::Float64 = 0.0,
+        J2::Float64 = 0.0,
+        lambda::Float64 = 1.0,
+        J1s::Tuple{Float64, Float64} = (J1, lambda*J1),
+        J2s::Tuple{Float64, Float64} = (J2, lambda*J2),
+        K::Float64 = 0.0,
+        g::Float64 = 0.0,
+        h::Point3{Float64} = Point3(0.0)
+    )
+    Parameters(J1s, J2s, K, g, h)
+end
+
+# - The first entry defines "normal order".
+# - Every entry should follow "normal order"
+# - Every sweep/spin_flip/deltaEnergy function is named according to the order
+#   given here
+# - sweep_picker has to follow this convention
+const param_groups = [
+    [:J1, :J2, :K, :g, :h],
+    [:J1, :J2, :K, :g],
+    [:J1, :J2, :K, :h],
+    [:J1, :J2, :K],
+    [:J1, :g, :h],
+    [:J1, :g],
+    # ...
+]
+
+function sweep_picker(param::Parameters)
+    doJ1 = param.J1 != (0.0, 0.0)
+    doJ2 = param.J2 != (0.0, 0.0)
+    doK = param.K != 0.0
+    dog = param.g != 0.0
+    doh = param.h != Point3(0.0)
+
+    param_group = Symbol[]
+    # Normal order!
+    doJ1 && push!(param_group, :J1)
+    doJ2 && push!(param_group, :J2)
+    doK && push!(param_group, :K)
+    dog && push!(param_group, :g)
+    doh && push!(param_group, :h)
+
+    if param_group in param_groups
+        return eval(:($(Symbol(:sweep_, param_group...))))
+    else
+        warn(
+            "No method generated for (" *
+            mapreduce(string, (a, b) -> a * ", " * b, param_group) *
+            "). Using the most general method instead. Consider implementing" *
+            " a specialized method by adding the parameters to param_groups!"
+        )
+        param_group = [:J1, :J2, :K, :g, :h]
+        return eval(:($(Symbol(:sweep_, param_group...))))
+    end
+end
+
+# Code Generation
+for param_group in param_groups
+    #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+    #<<< generate sweep functions
+    #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+    @eval begin
+        # Function names such as sweep_J1J2g
+        function $(Symbol(:sweep_, param_group...))(
+                sgraph::SGraph,
+                spin::Vector{Point3{Float64}},
+                E_tot::Float64,
+                beta::Float64,
+                param::Parameters
+            )
+            for (i, new_spin) in zip(
+                    rand(1:sgraph.N_nodes, sgraph.N_nodes),
+                    rand_spin(sgraph.N_nodes)
+                )
+                # calls spin_flip_J1J2g
+                E_tot = $(Symbol(:spin_flip_, param_group...))(
+                    sgraph, spins, i, new_spin, E_tot, beta, param
+                )
+            end
+
+            E_tot
+        end
+    end
+
+    #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+    #<<< generate spin_flip functions
+    #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+    @eval begin
+        function $(Symbol(:spin_flip_, param_group...))(
+                sgraph::SGraph,
+                spins::Vector{Point3{Float64}},
+                i::Int64,
+                new_spin::Point3{Float64},
+                E_tot::Float64,
+                beta::Float64,
+                param::Parameters
+            )
+            @inbounds n = sgraph.nodes[i]
+            xys, zs = generate_scalar_products(sgraph, spins, i, new_spin)
+            dE = $(Symbol(:deltaEnergy_, param_group...))(
+                n, spins, i, new_spin, xys, zs, param
+            )
+
+            if dE < 0.
+                @inbounds spins[i] = new_spin
+                update_edges!(n, xys, zs)
+                return E_tot + dE
+            elseif rand() < exp(-dE * beta)
+                @inbounds spins[i] = new_spin
+                update_edges!(n, xys, zs)
+                return E_tot + dE
+            end
+
+            E_tot
+        end
+    end
+
+    #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+    #<<< generate deltaEnergy functions
+    #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+    doJ1 = :J1 in param_group
+    doJ2 = :J2 in param_group
+    doK = :K in param_group
+    dog = :g in param_group
+    doh = :h in param_group
+
+    @eval begin
+        function $(Symbol(:deltaEnergy_, param_group...))(
+                n::SNode,
+                spins::Vector{Point3{Float64}},
+                i::Int64,
+                new_spin::Point3{Float64},
+                xys::Vector{Float64},
+                zs::Vector{Float64},
+                param::Parameters
+            )
+
+            dE = 0.
+
+            # J1/NN accumulator variables
+            $(doJ1 && quote #---------------------------------------------------
+                xy = 0.
+                z = 0.
+            end) #--------------------------------------------------------------
+
+            # K/4-spin accumulator variable
+            $(doK && quote #----------------------------------------------------
+                xyz = 0.
+            end) #--------------------------------------------------------------
+
+            # J1, K loop start
+            $((doJ1 || doK) && quote #------------------------------------------
+                for j in 1:4
+                    @inbounds xy = xys[j]
+                    @inbounds z = zs[j]
+
+                    @inbounds e = n.first[j]
+                    @fastmath dxy = xy - e.xy
+                    @fastmath dz = z - e.z
+
+                    # J1 only part - accumulate xy, z
+                    $(doJ1 && quote
+                        @fastmath xy += dxy        # xy - e.xy
+                        @fastmath z += dz          # z - e.z
+                    end)
+
+                    # K only
+                    $(doK && quote
+                        @fastmath temp_xy = 0.
+                        @fastmath temp_z = 0.
+                        for p in n.paths[j]
+                            @fastmath temp_xy += p.xy
+                            @fastmath temp_z += p.z
+                        end
+                        @fastmath xyz += dxy * temp_z + dz * temp_xy  # (K-term)
+                        # @fastmath K_xy += dxy * temp_xy       # (general 4-spin)
+                        # @fastmath K_z += dz * temp_z          # (general 4-spin)
+                    end)
+                end
+            end) #--------------------------------------------------------------
+
+            # Add to dE
+            $(doJ1 && quote #---------------------------------------------------
+                @fastmath @inbounds dE += param.J1[1] * xy + param.J1[2] * z
+            end) #--------------------------------------------------------------
+            $(doK && quote
+                @fastmath @inbounds dE += 2 * param.K * xyz
+            end) #--------------------------------------------------------------
+                    # Js[1][1] * xy1 +                    # J1[1]
+                    # Js[1][2] * z1 +                     # J1[2]
+                    # 2 * (                               # K here
+                    #     Js[3][1] * Js[4][1] * xy3 +     # K * 0     (x)
+                    #     Js[3][2] * Js[4][2] * z3        # 0 * 1     (x)
+                    # ) + (
+                    #     Js[3][1] * Js[4][2] +           # k * 1     (keep)
+                    #     Js[3][2] * Js[4][1]             # 0 * 1     (x)
+                    # ) * xyz3
+
+
+
+            # for g, h, J2
+            $((doJ2 || dog || doh) && quote #-----------------------------------
+                @fastmath @inbounds delta_s = new_spin .- spins[i]
+            end) #--------------------------------------------------------------
+
+
+            # J2/NNN
+            $(doJ2 && quote #---------------------------------------------------
+                # xy and z can be overwritten
+                xy = 0.
+                z = 0.
+                for j in n.second
+                    @fastmath @inbounds xy += delta_s[1] * spins[j][1] +
+                                              delta_s[2] * spins[j][2]
+                    @fastmath @inbounds z += delta_s[3] * spins[j][3]
+                end
+                @fastmath @inbounds dE += param.J2[1] * xy + param.J2[2] * z
+            end) #--------------------------------------------------------------
+
+            #=
+            g-paths
+            original: ∑∑∑ xxy + xyx + yxx - yyy
+            affected spins: o-a-b, a-o-b, where o is flipped
+            Notation: dx is flipped, sum over paths (o-a-b, a-o-b) implied
+            o-a-b: dx(xy)   + dx(yx)   + dy(xx)   - dy(yy)
+            a-o-b: (x)dx(y) + (x)dy(x) + (y)dx(x) - y(dy)y
+            notation: 1 means o-a-b term, 2 means a-o-b term
+            dx * [(xy)1 + (yx)1 + (xy)2 + (yx)2]
+            dy * [(xx)1 - (yy)1 + (xx)2 - (yy)2]
+            Note symmetry - we can loop over (o-a-b) and (a-o-b) terms here
+            further bracketing:
+            dx * [x1 * (y1 + y2) + y1 * (x1 + x2)]
+            dy * [x1 * (x1 + x2) - y1 * (y1 + y2)]
+            Note dublicate terms - we only need to compute two inner brackets
+            =#
+            # g terms
+            $(dog && quote #----------------------------------------------------
+                g_x__ = 0.  # [x1 * g___y + y1 * g___x]
+                g_y__ = 0.  # [x1 * g___x - y1 * g___y]
+                for gedge in n.gpaths   # 4 elements
+                    g___x = 0.  # (x1 + x2)
+                    g___y = 0.  # (y1 + y2)
+                    for bi in gedge.bs  # 6 5 4 3 elements
+                        @inbounds s2 = spins[bi]
+                        @fastmath @inbounds g___x += s2[1]
+                        @fastmath @inbounds g___y += s2[2]
+                    end
+                    @inbounds s1 = spins[gedge.a]
+                    @fastmath @inbounds g_x__ += s1[1] * g___y + s1[2] * g___x
+                    @fastmath @inbounds g_y__ += s1[1] * g___x - s1[2] * g___y
+                end
+                @fastmath @inbounds dE += param.g *
+                    (delta_s[1] * g_x__ + delta_s[2] * g_y__)
+            end) #--------------------------------------------------------------
+
+            # h
+            $(doh && quote #----------------------------------------------------
+                @fastmath dE -= dot(param.h, delta_s)
+            end) #--------------------------------------------------------------
+        end
+    end
+end
+
+
+# For reference: g-paths
+# TODO: find paths in sgraph; remove searching here
+# @inbounds sj = n.first[j].n1 != i ? n.first[j].n1 : n.first[j].n2
+# @fastmath @inbounds dxxyy = delta_s[1] * spins[sj][1] -
+#                             delta_s[2] * spins[sj][2]
+# @fastmath @inbounds dxyyx = delta_s[1] * spins[sj][2] +
+#                             delta_s[2] * spins[sj][1]
+#
+# x = 0.
+# y = 0.
+#
+# # second part (x - a - b)
+# for k in 1:4
+#     @inbounds _n = sgraph.nodes[sj]
+#     @inbounds n.first[j] == _n.first[k] && continue
+#     @inbounds sk = if _n.first[k].n1 != sj
+#         _n.first[k].n1
+#     else
+#         _n.first[k].n2
+#     end
+#     @fastmath @inbounds x += spins[sk][1]
+#     @fastmath @inbounds y += spins[sk][2]
+# end
+#
+# # second part (b - x - a)
+# for k in j+1:4
+#     @inbounds sk = if n.first[k].n1 != i
+#         n.first[k].n1
+#     else
+#         n.first[k].n2
+#     end
+#     @fastmath @inbounds x += spins[sk][1]
+#     @fastmath @inbounds y += spins[sk][2]
+# end
+#
+# @fastmath g_temp += dxxyy * y + dxyyx * x
+
+################################################################################
+#### single spin flip kernels
+################################################################################
+
+
+
+
+#=
 ################################################################################
 #### delta Energy Functions
 ################################################################################
@@ -1191,3 +1249,4 @@ end
 #
 #     E_tot
 # end
+=#
