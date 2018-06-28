@@ -27,7 +27,10 @@ end
 immutable SNode
     first::Vector{SEdge1}
     second::Vector{Int64}
-    paths::Vector{Vector{SEdge1}}        # includes all additonal edges in paths containing neighbours[1][j]
+    # includes all additonal edges in paths containing neighbours[1][j]
+    paths::Vector{Vector{SEdge1}}
+    # gpaths contains NN edges a-b for x-a-b terms and NNN edges a-b for a-x-b
+    gpaths::Tuple{Vector{SEdge1}, Vector{SEdge2}}
 end
 
 
@@ -122,6 +125,7 @@ function connect_nodes!(
     # M: whatever find needs
     # E: number of edges per node
     # O(N * M * E)
+    # NN
     for i in 1:Int64(length(nodes)) # IndexT
         rnode = rgraph.nodes[IDs[i][2]]
         lvl = 1
@@ -129,7 +133,7 @@ function connect_nodes!(
             l = flat_index(IDs[i][1] + re.dir, re.to)
 
             if l != 0
-                if lvl == 1
+                if lvl == 1     # <=> NN
                     e = SEdge1(-1., -1., i, l)
                     k = findfirst(first, e)
                     if k != 0
@@ -138,22 +142,25 @@ function connect_nodes!(
                         push!(nodes[i].first, e)
                         push!(first, e)
                     end
-                elseif lvl == 2
-                    e = SEdge2(i, l)
-                    k = findfirst(second, e)
-                    if k != 0
-                        push!(nodes[i].second, l)
-                    else
-                        push!(nodes[i].second, l)
-                        push!(second, e)
-                    end
+                # elseif lvl == 2     # <=> NNN
+                #     e = SEdge2(i, l)
+                #     k = findfirst(second, e)
+                #     if k != 0
+                #         push!(nodes[i].second, l)
+                #     else
+                #         push!(nodes[i].second, l)
+                #         push!(second, e)
+                #     end
                 else
-                    throw(ErrorException("More than second neighbours not implemented!"))
+                    throw(ErrorException(
+                        "More than second neighbours not implemented!"
+                    ))
                 end
             end
         end
     end
 
+    # NNN
     if length(rgraph.nodes[1].distances) >= 2
         for i in 1:Int64(length(nodes)) # IndexT
             rnode = rgraph.nodes[IDs[i][2]]
@@ -163,16 +170,17 @@ function connect_nodes!(
                 l = flat_index(IDs[i][1] + re.dir, re.to)
 
                 if l != 0
-                    if lvl == 1
-                        e = SEdge1(-1., -1., i, l)
-                        k = findfirst(first, e)
-                        if k != 0
-                            push!(nodes[i].first, first[k])
-                        else
-                            push!(nodes[i].first, e)
-                            push!(first, e)
-                        end
-                    elseif lvl == 2
+                    # if lvl == 1
+                    #     e = SEdge1(-1., -1., i, l)
+                    #     k = findfirst(first, e)
+                    #     if k != 0
+                    #         push!(nodes[i].first, first[k])
+                    #     else
+                    #         push!(nodes[i].first, e)
+                    #         push!(first, e)
+                    #     end
+                    # else
+                    if lvl == 2
                         e = SEdge2(i, l)
                         k = findfirst(second, e)
                         if k != 0
@@ -182,7 +190,9 @@ function connect_nodes!(
                             push!(second, e)
                         end
                     else
-                        throw(ErrorException("More than second neighbours not implemented!"))
+                        throw(ErrorException(
+                            "More than second neighbours not implemented!"
+                        ))
                     end
                 end
 
@@ -248,6 +258,34 @@ function connect_nodes!(
                 # save in edges
                 if ei2 > ei
                     push!(paths[ei], first[ei2])
+                end
+            end
+        end
+    end
+
+    for (xi, x) in enumerate(nodes)
+        # x - a - b paths
+        for skipped_edge in x.first
+            ai = skipped_edge.n1 == xi ? skipped_edge.n2 : skipped_edge.n1
+            for e in nodes[ai].first
+                e == skipped_edge && continue # no reversal
+                push!(x.gpaths[1], e)
+            end
+        end
+
+        # a - x - b
+        for i in 1:4        # picks a
+            axe = x.first[i]
+            ai = axe.n1 == xi ? axe.n2 : axe.n1
+            for j in i+1:4  # picks b
+                xbe = x.first[j]
+                bi = xbe.n1 == xi ? xbe.n2 : xbe.n1
+                abe = SEdge2(ai, bi)
+                abi = findfirst(second, abe)
+                if abi == 0
+                    push!(x.gpaths[2], abe)
+                else
+                    push!(x.gpaths[2], second[abi])
                 end
             end
         end
@@ -343,8 +381,10 @@ function Basisfill(rgraph::RGraph, N::Integer; border::Symbol=:periodic)
     # to IDs and the indice functions
     nodes = [
         SNode(
-            SEdge1[], Int64[],
-            [SEdge1[] for _ in 1:4]
+            SEdge1[],
+            Int64[],
+            [SEdge1[] for _ in 1:4],
+            (SEdge1[], SEdge2[])
         ) for __ in 1:N^3, _ in 1:length(rgraph.nodes)
     ][:]
 
