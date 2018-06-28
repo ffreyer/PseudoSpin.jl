@@ -23,6 +23,11 @@ immutable SEdge2 <: SEdge
     n2::Int64
 end
 
+struct GEdge <: SEdge
+    a::Int64
+    bs::Vector{Int64}
+end
+
 
 immutable SNode
     first::Vector{SEdge1}
@@ -30,7 +35,8 @@ immutable SNode
     # includes all additonal edges in paths containing neighbours[1][j]
     paths::Vector{Vector{SEdge1}}
     # gpaths contains NN edges a-b for x-a-b terms and NNN edges a-b for a-x-b
-    gpaths::Tuple{Vector{SEdge1}, Vector{SEdge2}}
+    # gpaths::Tuple{Vector{SEdge1}, Vector{SEdge2}}
+    gpaths::Vector{GEdge}
 end
 
 
@@ -267,27 +273,26 @@ function connect_nodes!(
         # x - a - b paths
         for skipped_edge in x.first
             ai = skipped_edge.n1 == xi ? skipped_edge.n2 : skipped_edge.n1
+            bs = Int64[]
             for e in nodes[ai].first
                 e == skipped_edge && continue # no reversal
-                push!(x.gpaths[1], e)
+                bi = e.n1 == ai ? e.n2 : e.n1
+                push!(bs, bi)
             end
+            push!(x.gpaths, GEdge(ai, bs))
         end
 
         # a - x - b
-        for i in 1:4        # picks a
+        for i in 1:3        # picks a
             axe = x.first[i]
             ai = axe.n1 == xi ? axe.n2 : axe.n1
+            bs = Int64[]
             for j in i+1:4  # picks b
                 xbe = x.first[j]
                 bi = xbe.n1 == xi ? xbe.n2 : xbe.n1
-                abe = SEdge2(ai, bi)
-                abi = findfirst(second, abe)
-                if abi == 0
-                    push!(x.gpaths[2], abe)
-                else
-                    push!(x.gpaths[2], second[abi])
-                end
+                push!(bs, bi)
             end
+            append!(x.gpaths[i].bs, bs)
         end
     end
 
@@ -384,7 +389,7 @@ function Basisfill(rgraph::RGraph, N::Integer; border::Symbol=:periodic)
             SEdge1[],
             Int64[],
             [SEdge1[] for _ in 1:4],
-            (SEdge1[], SEdge2[])
+            GEdge[]
         ) for __ in 1:N^3, _ in 1:length(rgraph.nodes)
     ][:]
 
