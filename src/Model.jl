@@ -155,7 +155,9 @@ function scalar_prod(
     )
 
     j = i == e.n1 ? e.n2 : e.n1
-    @fastmath @inbounds return new_spin[1] * spins[j][1] + new_spin[2] * spins[j][2], new_spin[3] * spins[j][3]
+    @fastmath @inbounds return new_spin[1] * spins[j][1] +
+                               new_spin[2] * spins[j][2],
+                               new_spin[3] * spins[j][3]
 end
 
 
@@ -373,12 +375,9 @@ for param_group in param_groups
             # J1, K loop start
             $((doJ1 || doK) && quote #------------------------------------------
                 for j in 1:4
-                    @inbounds xy = xys[j]
-                    @inbounds z = zs[j]
-
                     @inbounds e = n.first[j]
-                    @fastmath dxy = xy - e.xy
-                    @fastmath dz = z - e.z
+                    @fastmath @inbounds dxy = xys[j] - e.xy
+                    @fastmath @inbounds dz = zs[j] - e.z
 
                     # J1 only part - accumulate xy, z
                     $(doJ1 && quote
@@ -432,8 +431,10 @@ for param_group in param_groups
                 xy = 0.
                 z = 0.
                 for j in n.second
-                    @fastmath @inbounds xy += delta_s[1] * spins[j][1] +
-                                              delta_s[2] * spins[j][2]
+                    @fastmath @inbounds begin
+                        xy += delta_s[1] * spins[j][1] +
+                              delta_s[2] * spins[j][2]
+                    end
                     @fastmath @inbounds z += delta_s[3] * spins[j][3]
                 end
                 @fastmath @inbounds dE += param.J2[1] * xy + param.J2[2] * z
@@ -482,7 +483,6 @@ for param_group in param_groups
         end
     end
 end
-
 
 # For reference: g-paths
 # TODO: find paths in sgraph; remove searching here
