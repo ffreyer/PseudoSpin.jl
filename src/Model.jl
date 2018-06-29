@@ -137,6 +137,71 @@ function totalEnergy(
 end
 
 
+function totalEnergy(
+        sgraph::SGraph,
+        spins::Vector{Point3{Float64}},
+        param::Parameters
+    )
+    # println("totalEnergy w/ g...")  # NOTE
+    # println("\t Js = ", Js)
+    # println("\t h = ", h)
+    # println("\t g = ", g)
+
+
+    E = 0.
+    for e in sgraph.second
+        E += param.J2[1] * (
+            spins[e.n1][1] * spins[e.n2][1] +
+            spins[e.n1][2] * spins[e.n2][2]
+        ) + param.J2[2] * spins[e.n1][3] * spins[e.n2][3]
+    end
+
+    for i in eachindex(sgraph.first)
+        e = sgraph.first[i]
+        E += param.J1[1] * e.xy + param.J1[2] * e.z
+        for p in sgraph.paths[i]
+            # E += (Js[3][1] * e.xy + Js[3][2] * e.z) * (Js[4][1] * p.xy + Js[4][2] * p.z)
+            # E += (Js[4][1] * e.xy + Js[4][2] * e.z) * (Js[3][1] * p.xy + Js[3][2] * p.z)
+            E += 2.0 * param.K * e.xy * p.z
+        end
+    end
+
+    # Checked:
+    # factor 0.5 (overcounting edges)
+    # number of edges (12x a-b-c, 2x (overcounting) 6x c-a-b)
+    # edges/paths for first node correct
+    for ei in eachindex(sgraph.first)
+        e12 = sgraph.first[ei]
+        for e23 in sgraph.nodes[e12.n2].first   # LID: 1 -> 2 -> 1
+            e12 == e23 && continue
+            n3 = e23.n1 != e12.n2 ? e23.n1 : e23.n2
+            E += 0.5param.g * (
+                spins[e12.n1][1] * spins[e12.n2][1] * spins[n3][2] +
+                spins[e12.n1][1] * spins[e12.n2][2] * spins[n3][1] +
+                spins[e12.n1][2] * spins[e12.n2][1] * spins[n3][1] -
+                spins[e12.n1][2] * spins[e12.n2][2] * spins[n3][2]
+            )
+        end
+        for e23 in sgraph.nodes[e12.n1].first   # LID: 2 -> 1 -> 2
+            e12 == e23 && continue              # overcounting cause 2 <- 1 <- 2
+            n3 = e23.n1 != e12.n1 ? e23.n1 : e23.n2
+            E += 0.5param.g * (
+                spins[e12.n2][1] * spins[e12.n1][1] * spins[n3][2] +
+                spins[e12.n2][1] * spins[e12.n1][2] * spins[n3][1] +
+                spins[e12.n2][2] * spins[e12.n1][1] * spins[n3][1] -
+                spins[e12.n2][2] * spins[e12.n1][2] * spins[n3][2]
+            )
+        end
+    end
+
+    for S in spins
+        E -= dot(param.h, S)
+    end
+
+    E
+end
+
+
 ################################################################################
 ### scalar product stuff
 ################################################################################
