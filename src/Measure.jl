@@ -61,13 +61,13 @@ function measure!(
     @inline flip3(i::Int64, s::Point3{Float64}) = s
     @inline @inbounds flip4(i::Int64, s::Point3{Float64}) = i <= Nhalf ? s : [s[1], s[2], -s[3]]
 
-    if sign(Js[1][1]) >= 0.0
-        if sign(Js[3][1]) >= 0.0
+    if sign(parameters.J1[1]) >= 0.0
+        if sign(parameters.K) >= 0.0
             flip = flip1
         else
             flip = flip2
         end
-    elseif sign(Js[3][1]) >= 0.0
+    elseif sign(parameters.K) >= 0.0
         flip = flip3
     else
         flip = flip4

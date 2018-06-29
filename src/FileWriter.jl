@@ -42,11 +42,11 @@ function write_header!(
     #     end
     # end
     # NOTE this does not change file reading
-    write(file, 4);           write(file, 2)
-    write(file, param.J1[1]); write(file, param.J1[2])
-    write(file, param.J2[1]); write(file, param.J2[2])
-    write(file, param.K);     write(file, 0.0)
-    write(file, 0.0);         write(file, 1.0)
+    write(file, 4);                 write(file, 2)
+    write(file, parameters.J1[1]);  write(file, parameters.J1[2])
+    write(file, parameters.J2[1]);  write(file, parameters.J2[2])
+    write(file, parameters.K);      write(file, 0.0)
+    write(file, 0.0);               write(file, 1.0)
     for _h in parameters.h; write(file, _h) end
     write(file, parameters.g)
     write(file, T)

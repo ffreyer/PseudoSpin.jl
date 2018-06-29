@@ -162,12 +162,6 @@ function totalEnergy(
         spins::Vector{Point3{Float64}},
         param::Parameters
     )
-    # println("totalEnergy w/ g...")  # NOTE
-    # println("\t Js = ", Js)
-    # println("\t h = ", h)
-    # println("\t g = ", g)
-
-
     E = 0.
     for e in sgraph.second
         E += param.J2[1] * (
@@ -182,7 +176,7 @@ function totalEnergy(
         for p in sgraph.paths[i]
             # E += (Js[3][1] * e.xy + Js[3][2] * e.z) * (Js[4][1] * p.xy + Js[4][2] * p.z)
             # E += (Js[4][1] * e.xy + Js[4][2] * e.z) * (Js[3][1] * p.xy + Js[3][2] * p.z)
-            E += 2.0 * param.K * e.xy * p.z
+            E += param.K * (e.xy * p.z + e.z * p.xy)
         end
     end
 
@@ -307,12 +301,16 @@ end
 #   given here
 # - sweep_picker has to follow this convention
 const param_groups = [
-    [:J1, :J2, :K, :g, :h],
+    [:J1, :J2, :K, :g, :h], # Tested
     [:J1, :J2, :K, :g],
-    [:J1, :J2, :K, :h],
+    [:J1, :J2, :K, :h],     # Tested
     [:J1, :J2, :K],
     [:J1, :g, :h],
-    [:J1, :g],
+    [:J1, :g],      # Tested
+    [:J1],          # Tested
+    [:J2],          # Tested
+    [:K],           # Tested
+    [:h],           # Tested
     # ...
 ]
 
@@ -336,7 +334,7 @@ function sweep_picker(param::Parameters)
     else
         warn(
             "No method generated for (" *
-            mapreduce(string, (a, b) -> a * ", " * b, param_group) *
+            reduce((a, b) -> a * ", " * b, "", map(string, param_group)) *
             "). Using the most general method instead. Consider implementing" *
             " a specialized method by adding the parameters to param_groups!"
         )
@@ -354,7 +352,7 @@ for param_group in param_groups
         # Function names such as sweep_J1J2g
         function $(Symbol(:sweep_, param_group...))(
                 sgraph::SGraph,
-                spin::Vector{Point3{Float64}},
+                spins::Vector{Point3{Float64}},
                 E_tot::Float64,
                 beta::Float64,
                 param::Parameters
@@ -472,7 +470,7 @@ for param_group in param_groups
                 @fastmath @inbounds dE += param.J1[1] * xy + param.J1[2] * z
             end) #--------------------------------------------------------------
             $(doK && quote
-                @fastmath @inbounds dE += 2 * param.K * xyz
+                @fastmath @inbounds dE += param.K * xyz
             end) #--------------------------------------------------------------
                     # Js[1][1] * xy1 +                    # J1[1]
                     # Js[1][2] * z1 +                     # J1[2]
@@ -547,6 +545,8 @@ for param_group in param_groups
             $(doh && quote #----------------------------------------------------
                 @fastmath dE -= dot(param.h, delta_s)
             end) #--------------------------------------------------------------
+
+            return dE
         end
     end
 end
