@@ -28,16 +28,25 @@ for argline in eachline(argfile)
         push!(kwargs, :Ts => map(x -> parse(Float64, x), args[2:end]))
     elseif args[1] == "Js" # How do I do this?
         if length(args) < 9; throw(ErrorException("Failed to read Js")) end
-        push!(kwargs, :Js => [
-            (parse(Float64, args[2]), parse(Float64, args[3])),
-            (parse(Float64, args[4]), parse(Float64, args[5])),
-            (parse(Float64, args[6]), parse(Float64, args[7])),
-            (parse(Float64, args[8]), parse(Float64, args[9]))
-        ])
+        # push!(kwargs, :Js => [
+        #     (parse(Float64, args[2]), parse(Float64, args[3])),
+        #     (parse(Float64, args[4]), parse(Float64, args[5])),
+        #     (parse(Float64, args[6]), parse(Float64, args[7])),
+        #     (parse(Float64, args[8]), parse(Float64, args[9]))
+        # ])
+        push!(kwargs, :J1s => (parse(Float64, args[2]), parse(Float64, args[3])))
+        push!(kwargs, :J2s => (parse(Float64, args[4]), parse(Float64, args[5])))
+        push!(kwargs, :K => parse(Float64, args[6]) * parse(Float64, args[9]))
+        @assert parse(Float64, args[7]) == 0.0 "General 4-spin term not supported"
+        @assert parse(Float64, args[8]) == 0.0 "General 4-spin term not supported"
     elseif args[1] == "J1"
         push!(kwargs, :J1 => parse(Float64, args[2]))
     elseif args[1] == "J2"
         push!(kwargs, :J2 => parse(Float64, args[2]))
+    elseif args[1] == "J1s"
+        push!(kwargs, :J1s => (parse(Float64, args[2]), parse(Float64, args[3])))
+    elseif args[1] == "J2s"
+        push!(kwargs, :J2s => (parse(Float64, args[2]), parse(Float64, args[3])))
     elseif args[1] == "K"
         push!(kwargs, :K => parse(Float64, args[2]))
     elseif args[1] == "lambda"
