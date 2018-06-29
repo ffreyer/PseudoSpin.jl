@@ -306,6 +306,7 @@ const param_groups = [
     [:J2],          # Tested
     [:K],           # Tested
     [:h],           # Tested
+    [:g],
     # ...
 ]
 
