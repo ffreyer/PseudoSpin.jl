@@ -71,7 +71,6 @@ end
     @test sweep == PseudoSpin.sweep_J1
 
     for _ in 1:100
-        # E_tot = sweep(sim, spins, E_tot, Js, 1./10., h)
         E_tot = sweep(sim, spins, E_tot, 1./10., param)
     end
     @test E_tot ≈ totalEnergy(sim, spins, Js, h)
@@ -91,7 +90,6 @@ end
     @test sweep == PseudoSpin.sweep_J2
 
     for _ in 1:100
-        # E_tot = sweep(sim, spins, E_tot, Js, 1./10., h)
         E_tot = sweep(sim, spins, E_tot, 1./10., param)
     end
     @test E_tot ≈ totalEnergy(sim, spins, Js, h)
@@ -111,7 +109,6 @@ end
     @test sweep == PseudoSpin.sweep_K
 
     for _ in 1:100
-        # E_tot = sweep(sim, spins, E_tot, Js, 1./10., h)
         E_tot = sweep(sim, spins, E_tot, 1./10., param)
     end
     @test E_tot ≈ totalEnergy(sim, spins, Js, h)
@@ -132,7 +129,6 @@ end
     @test sweep == PseudoSpin.sweep_h
 
     for _ in 1:100
-        # E_tot = sweep(sim, spins, E_tot, Js, 1./10., h)
         E_tot = sweep(sim, spins, E_tot, 1./10., param)
     end
     @test E_tot ≈ totalEnergy(sim, spins, Js, h)
@@ -153,7 +149,6 @@ end
     @test sweep == PseudoSpin.sweep_J1J2Kh
 
     for _ in 1:100
-        # E_tot = sweep(sim, spins, E_tot, Js, 1./10., h)
         E_tot = sweep(sim, spins, E_tot, 1./10., param)
     end
     @test E_tot ≈ totalEnergy(sim, spins, Js, h)
@@ -173,7 +168,6 @@ end
     @test sweep == PseudoSpin.sweep_J1J2Kgh
 
     for _ in 1:100
-        # E_tot = sweep(sim, spins, E_tot, Js, 1./10., h, g)
         E_tot = sweep(sim, spins, E_tot, 1./10., param)
     end
     @test E_tot ≈ totalEnergy(sim, spins, Js, h, g)
@@ -194,7 +188,6 @@ end
     @test sweep == PseudoSpin.sweep_J1g
 
     for _ in 1:100
-        # E_tot = sweep(sim, spins, E_tot, Js, 1./10., h, g)
         E_tot = sweep(sim, spins, E_tot, 1./10., param)
     end
     @test E_tot ≈ totalEnergy(sim, spins, Js, h, g)
