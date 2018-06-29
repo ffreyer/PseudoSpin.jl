@@ -1,3 +1,23 @@
+struct Parameters
+    J1::Tuple{Float64, Float64}
+    J2::Tuple{Float64, Float64}
+    K::Float64
+    g::Float64
+    h::Point3{Float64}
+end
+function Parameters(;
+        J1::Float64 = 0.0,
+        J2::Float64 = 0.0,
+        lambda::Float64 = 1.0,
+        J1s::Tuple{Float64, Float64} = (J1, lambda*J1),
+        J2s::Tuple{Float64, Float64} = (J2, lambda*J2),
+        K::Float64 = 0.0,
+        g::Float64 = 0.0,
+        h::Point3{Float64} = Point3(0.0)
+    )
+    Parameters(J1s, J2s, K, g, h)
+end
+
 """
     init_edges!(sgraph, spins)
 
@@ -279,25 +299,7 @@ end
 #   * update all sweep/spin_flip (kernel)/deltaEnergy calls to have some
 #       normal ordering. Maybe this would be easier with a Container struct?
 #       Efficiency is fine
-struct Parameters
-    J1::Tuple{Float64, Float64}
-    J2::Tuple{Float64, Float64}
-    K::Float64
-    g::Float64
-    h::Point3{Float64}
-end
-function Parameters(;
-        J1::Float64 = 0.0,
-        J2::Float64 = 0.0,
-        lambda::Float64 = 1.0,
-        J1s::Tuple{Float64, Float64} = (J1, lambda*J1),
-        J2s::Tuple{Float64, Float64} = (J2, lambda*J2),
-        K::Float64 = 0.0,
-        g::Float64 = 0.0,
-        h::Point3{Float64} = Point3(0.0)
-    )
-    Parameters(J1s, J2s, K, g, h)
-end
+
 
 # - The first entry defines "normal order".
 # - Every entry should follow "normal order"
