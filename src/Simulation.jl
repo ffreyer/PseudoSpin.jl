@@ -274,12 +274,14 @@ function simulate!(;
         K::Float64 = 0.,
         h::Point3{Float64} = Point3(0.),
         g::Float64 = 0.,
+        zeta::Float64 = 0.,
         parameters::Parameters = Parameters(
             J1s = J1s,
             J2s = J2s,
             K = K,
             g = g,
-            h = h
+            h = h,
+            zeta = zeta
         ),
         # Thermalization - Temperature generator
         TH_sweeps::Int64 = 2_000_000,

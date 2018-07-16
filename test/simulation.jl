@@ -192,4 +192,16 @@ end
     end
     @test E_tot ≈ totalEnergy(sim, spins, Js, h, g)
     @test E_tot ≈ totalEnergy(sim, spins, param)
+
+    #-----------------------------------------------------
+
+    param = Parameters(zeta = 1.0)
+    E_tot = totalEnergy(sim, spins, param)
+    sweep = sweep_picker(param)
+    @test sweep == PseudoSpin.sweep_zeta
+
+    for _ in 1:100
+        E_tot = sweep(sim, spins, E_tot, 1./10., param)
+    end
+    @test E_tot ≈ totalEnergy(sim, spins, param)
 end

@@ -21,6 +21,7 @@ end
 immutable SEdge2 <: SEdge
     n1::Int64
     n2::Int64
+    plane::Symbol
 end
 
 struct GEdge <: SEdge
@@ -171,7 +172,7 @@ function connect_nodes!(
         for i in 1:Int64(length(nodes)) # IndexT
             rnode = rgraph.nodes[IDs[i][2]]
             lvl = 2
-            for re in rnode.edges[lvl]
+            for (ri, re) in enumerate(rnode.edges[lvl])
 
                 l = flat_index(IDs[i][1] + re.dir, re.to)
 
@@ -187,7 +188,12 @@ function connect_nodes!(
                     #     end
                     # else
                     if lvl == 2
-                        e = SEdge2(i, l)
+                        plane = [
+                            :xy, :xz, :yz, :xz,
+                            :xy, :yz, :yz, :xy,
+                            :xz, :yz, :xz, :xy
+                        ][ri]
+                        e = SEdge2(i, l, plane)
                         k = findfirst(second, e)
                         if k != 0
                             push!(nodes[i].second, l)

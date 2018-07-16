@@ -1,3 +1,4 @@
+const sqrt3 = sqrt(3.0)
 # The purpose of this type is to simplify branching.
 # Without this, you may want to call sweep(... J1, g), but there is no efficient
 # way to make sure that J1 propagates as J1 and g as g (instead of, say, K).
@@ -9,6 +10,7 @@ struct Parameters
     K::Float64
     g::Float64
     h::Point3{Float64}
+    zeta::Float64
 end
 
 """
@@ -25,9 +27,10 @@ function Parameters(;
         J2s::Tuple{Float64, Float64} = (J2, lambda*J2),
         K::Float64 = 0.0,
         g::Float64 = 0.0,
-        h::Point3{Float64} = Point3(0.0)
+        h::Point3{Float64} = Point3(0.0),
+        zeta::Float64 = 0.0
     )
-    Parameters(J1s, J2s, K, g, h)
+    Parameters(J1s, J2s, K, g, h, zeta)
 end
 
 """
@@ -235,6 +238,34 @@ function totalEnergy(
             spins[e.n1][1] * spins[e.n2][1] +
             spins[e.n1][2] * spins[e.n2][2]
         ) + param.J2[2] * spins[e.n1][3] * spins[e.n2][3]
+        if e.plane == :xy
+            E += 2.0 * param.zeta * (
+                spins[e.n1][1] * spins[e.n2][1] -
+                spins[e.n1][2] * spins[e.n2][2]
+            )
+        elseif e.plane == :xz
+            E += param.zeta * (
+                -(
+                    spins[e.n1][1] * spins[e.n2][1] -
+                    spins[e.n1][2] * spins[e.n2][2]
+                ) - sqrt3 * (
+                    spins[e.n1][1] * spins[e.n2][2] +
+                    spins[e.n1][2] * spins[e.n2][1]
+                )
+            )
+        elseif e.plane == :yz
+            E += param.zeta * (
+                -(
+                    spins[e.n1][1] * spins[e.n2][1] -
+                    spins[e.n1][2] * spins[e.n2][2]
+                ) + sqrt3 * (
+                    spins[e.n1][1] * spins[e.n2][2] +
+                    spins[e.n1][2] * spins[e.n2][1]
+                )
+            )
+        else
+            error("Second neighbor plane defined incorrectly as $(e.plane).")
+        end
     end
 
     for i in eachindex(sgraph.first)
@@ -296,6 +327,7 @@ end
 # Every sweep/spin_flip/deltaEnergy function will be named according to the
 # order given here. sweep_picker has to follow this convention.
 const param_groups = [
+    [:J1, :J2, :K, :g, :h, :zeta],
     [:J1, :J2, :K, :g, :h], # Tested
     [:J1, :J2, :K, :g],
     [:J1, :J2, :K, :h],     # Tested
@@ -307,6 +339,7 @@ const param_groups = [
     [:K],           # Tested
     [:h],           # Tested
     [:g],
+    [:zeta],
     # ...
 ]
 
@@ -322,6 +355,7 @@ function sweep_picker(param::Parameters)
     doK = param.K != 0.0
     dog = param.g != 0.0
     doh = param.h != Point3(0.0)
+    dozeta = param.zeta != 0.0
 
     param_group = Symbol[]
     # Normal order!
@@ -330,6 +364,7 @@ function sweep_picker(param::Parameters)
     doK && push!(param_group, :K)
     dog && push!(param_group, :g)
     doh && push!(param_group, :h)
+    dozeta && push!(param_group, :zeta)
 
     if param_group in param_groups
         return eval(:($(Symbol(:sweep_, param_group...))))
@@ -414,6 +449,7 @@ for param_group in param_groups
     doK = :K in param_group
     dog = :g in param_group
     doh = :h in param_group
+    dozeta = :zeta in param_group
 
     @eval begin
         function $(Symbol(:deltaEnergy_, param_group...))(
@@ -489,7 +525,7 @@ for param_group in param_groups
             # ) * xyz3
 
             # ΔS for g, h, J2
-            $((doJ2 || dog || doh) && quote #-----------------------------------
+            $((doJ2 || dog || doh || dozeta) && quote #-----------------------------------
                 @fastmath @inbounds delta_s = new_spin .- spins[i]
             end) #--------------------------------------------------------------
 
@@ -508,6 +544,46 @@ for param_group in param_groups
                     @fastmath @inbounds z += delta_s[3] * spins[j][3]
                 end
                 @fastmath @inbounds dE += param.J2[1] * xy + param.J2[2] * z
+            end) #--------------------------------------------------------------
+
+            $(dozeta && quote #-------------------------------------------------
+                id = n.second
+                # So explicit, yet so implicit :o
+                dE += param.zeta * (
+                    delta_s[1] * (
+                        2.0 * ( # xy-plane terms
+                            spins[id[1]][1] + spins[id[5]][1] +
+                            spins[id[8]][1] + spins[id[12]][1]
+                        ) - ( # yz, xz -plane terms
+                            spins[id[2]][1] + spins[id[3]][1] +
+                            spins[id[4]][1] + spins[id[6]][1] +
+                            spins[id[7]][1] + spins[id[9]][1] +
+                            spins[id[10]][1] + spins[id[11]][1]
+                        ) + sqrt3 * ( # xz-plane
+                            - spins[id[2]][2] - spins[id[4]][2] -
+                            spins[id[9]][2] - spins[id[11]][2] +
+                                     # yz-plane
+                            spins[id[3]][2] + spins[id[6]][2] +
+                            spins[id[7]][2] + spins[id[10]][2]
+                        )
+                    ) + delta_s[2] * (
+                        -2.0 * ( # xy-plane terms
+                            spins[id[1]][2] + spins[id[5]][2] +
+                            spins[id[8]][2] + spins[id[12]][2]
+                        ) + ( # yz, xz -plane terms
+                            spins[id[2]][2] + spins[id[3]][2] +
+                            spins[id[4]][2] + spins[id[6]][2] +
+                            spins[id[7]][2] + spins[id[9]][2] +
+                            spins[id[10]][2] + spins[id[11]][2]
+                        ) + sqrt3 * ( # xz-plane
+                            - spins[id[2]][1] - spins[id[4]][1] -
+                            spins[id[9]][1] - spins[id[11]][1] +
+                                      # yz-plane
+                            spins[id[3]][1] + spins[id[6]][1] +
+                            spins[id[7]][1] + spins[id[10]][1]
+                        )
+                    )
+                )
             end) #--------------------------------------------------------------
 
             #=
