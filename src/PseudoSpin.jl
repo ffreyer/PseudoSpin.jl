@@ -10,9 +10,12 @@ __precompile__(true)
 #     typealias _String String
 # end
 
+# SLURM WORKAROUND
+# Don't import this so this package can run without loading MPI libraries
+# If MPI is used without importing it this will crash, but that's fine
+# import MPI
 
 # Small FixedSizeArrays, e.g. 3-component vectors, outperform Julia Arrays.
-import MPI
 try
     using FixedSizeArrays
 catch e

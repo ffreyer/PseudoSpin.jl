@@ -154,7 +154,12 @@ function simulate!(
     )
 
     if is_parallel(thermalizer)
-        MPI.Init()
+        try
+            MPI.Init()
+        catch e
+            println("MPI has to be loaded before starting a simulation!")
+            throw(e)
+        end
         @assert MPI.Comm_size(MPI.COMM_WORLD) == length(Ts) "The number of processes has to match the number of Temperatures!"
         i = MPI.Comm_rank(MPI.COMM_WORLD)+1
         simulate!(
