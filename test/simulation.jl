@@ -1,4 +1,4 @@
-r = RGraph(diamond("A"), 2)
+r = RGraph(diamond("A"), 3)
 generate_paths!(r)
 sim, _, _ = Basisfill(r, 3)
 
@@ -6,12 +6,14 @@ sim, _, _ = Basisfill(r, 3)
     @test sim.N_nodes == 2*3^3
     @test length(sim.first) == 4*3^3    # 1/2 * 4 * N_nodes
     @test length(sim.second) == 12*3^3
+    @test length(sim.third) == 12*3^3
     @test length(sim.paths) == 4*3^3
     @test mapreduce(length, +, sim.paths) == 36*3^3
 
     for n in sim.nodes
         @test length(n.first) == 4
         @test length(n.second) == 12
+        @test length(n.third) == 12
         @test mapreduce(length, +, n.paths) == 72 # 2*4*3*3
         # 2 - paths like n - x - y - z and x - n - y - z
         # 4, 3 - 4 nearest neighbors; 3 without reversing
@@ -199,6 +201,18 @@ end
     E_tot = totalEnergy(sim, spins, param)
     sweep = sweep_picker(param)
     @test sweep == PseudoSpin.sweep_zeta
+
+    for _ in 1:100
+        E_tot = sweep(sim, spins, E_tot, 1./10., param)
+    end
+    @test E_tot ≈ totalEnergy(sim, spins, param)
+
+    #-----------------------------------------------------
+
+    param = Parameters(J3 = 1.0)
+    E_tot = totalEnergy(sim, spins, param)
+    sweep = sweep_picker(param)
+    @test sweep == PseudoSpin.sweep_J3
 
     for _ in 1:100
         E_tot = sweep(sim, spins, E_tot, 1./10., param)

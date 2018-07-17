@@ -7,6 +7,7 @@ const sqrt3 = sqrt(3.0)
 struct Parameters
     J1::Tuple{Float64, Float64}
     J2::Tuple{Float64, Float64}
+    J3::Tuple{Float64, Float64}
     K::Float64
     g::Float64
     h::Point3{Float64}
@@ -22,15 +23,17 @@ lambda, K, g, h as well as J1s and J2s, while are built from J1/J2 and lambda.
 function Parameters(;
         J1::Float64 = 0.0,
         J2::Float64 = 0.0,
+        J3::Float64 = 0.0,
         lambda::Float64 = 1.0,
         J1s::Tuple{Float64, Float64} = (J1, lambda*J1),
         J2s::Tuple{Float64, Float64} = (J2, lambda*J2),
+        J3s::Tuple{Float64, Float64} = (J3, lambda*J3),
         K::Float64 = 0.0,
         g::Float64 = 0.0,
         h::Point3{Float64} = Point3(0.0),
         zeta::Float64 = 0.0
     )
-    Parameters(J1s, J2s, K, g, h, zeta)
+    Parameters(J1s, J2s, J3s, K, g, h, zeta)
 end
 
 """
@@ -268,6 +271,13 @@ function totalEnergy(
         end
     end
 
+    for e in sgraph.third
+        E += param.J3[1] * (
+            spins[e.n1][1] * spins[e.n2][1] +
+            spins[e.n1][2] * spins[e.n2][2]
+        ) + param.J3[2] * spins[e.n1][3] * spins[e.n2][3]
+    end
+
     for i in eachindex(sgraph.first)
         e = sgraph.first[i]
         E += param.J1[1] * e.xy + param.J1[2] * e.z
@@ -327,6 +337,7 @@ end
 # Every sweep/spin_flip/deltaEnergy function will be named according to the
 # order given here. sweep_picker has to follow this convention.
 const param_groups = [
+    [:J1, :J2, :J3, :K, :g, :h, :zeta],
     [:J1, :J2, :K, :g, :h, :zeta],
     [:J1, :J2, :K, :g, :h], # Tested
     [:J1, :J2, :K, :g],
@@ -336,6 +347,7 @@ const param_groups = [
     [:J1, :g],      # Tested
     [:J1],          # Tested
     [:J2],          # Tested
+    [:J3],
     [:K],           # Tested
     [:h],           # Tested
     [:g],
@@ -352,6 +364,7 @@ the most general sweep function if no specialized code is available (with Warnin
 function sweep_picker(param::Parameters)
     doJ1 = param.J1 != (0.0, 0.0)
     doJ2 = param.J2 != (0.0, 0.0)
+    doJ3 = param.J3 != (0.0, 0.0)
     doK = param.K != 0.0
     dog = param.g != 0.0
     doh = param.h != Point3(0.0)
@@ -361,6 +374,7 @@ function sweep_picker(param::Parameters)
     # Normal order!
     doJ1 && push!(param_group, :J1)
     doJ2 && push!(param_group, :J2)
+    doJ3 && push!(param_group, :J3)
     doK && push!(param_group, :K)
     dog && push!(param_group, :g)
     doh && push!(param_group, :h)
@@ -446,6 +460,7 @@ for param_group in param_groups
     #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
     doJ1 = :J1 in param_group
     doJ2 = :J2 in param_group
+    doJ3 = :J3 in param_group
     doK = :K in param_group
     dog = :g in param_group
     doh = :h in param_group
@@ -525,7 +540,7 @@ for param_group in param_groups
             # ) * xyz3
 
             # ΔS for g, h, J2
-            $((doJ2 || dog || doh || dozeta) && quote #-----------------------------------
+            $((doJ2 || doJ3 || dog || doh || dozeta) && quote #-----------------
                 @fastmath @inbounds delta_s = new_spin .- spins[i]
             end) #--------------------------------------------------------------
 
@@ -544,6 +559,20 @@ for param_group in param_groups
                     @fastmath @inbounds z += delta_s[3] * spins[j][3]
                 end
                 @fastmath @inbounds dE += param.J2[1] * xy + param.J2[2] * z
+            end) #--------------------------------------------------------------
+
+            # J3 / third neighbor
+            $(doJ3 && quote #---------------------------------------------------
+                xy = 0.
+                z = 0.
+                for j in n.third
+                    @fastmath @inbounds begin
+                        xy += delta_s[1] * spins[j][1] +
+                              delta_s[2] * spins[j][2]
+                    end
+                    @fastmath @inbounds z += delta_s[3] * spins[j][3]
+                end
+                @fastmath @inbounds dE += param.J3[1] * xy + param.J3[2] * z
             end) #--------------------------------------------------------------
 
             $(dozeta && quote #-------------------------------------------------
