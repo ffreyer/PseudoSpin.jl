@@ -43,10 +43,14 @@ for argline in eachline(argfile)
         push!(kwargs, :J1 => parse(Float64, args[2]))
     elseif args[1] == "J2"
         push!(kwargs, :J2 => parse(Float64, args[2]))
+    elseif args[1] == "J3"
+        push!(kwargs, :J3 => parse(Float64, args[2]))
     elseif args[1] == "J1s"
         push!(kwargs, :J1s => (parse(Float64, args[2]), parse(Float64, args[3])))
     elseif args[1] == "J2s"
         push!(kwargs, :J2s => (parse(Float64, args[2]), parse(Float64, args[3])))
+    elseif args[1] == "J3s"
+        push!(kwargs, :J3s => (parse(Float64, args[2]), parse(Float64, args[3])))
     elseif args[1] == "K"
         push!(kwargs, :K => parse(Float64, args[2]))
     elseif args[1] == "lambda"
@@ -63,23 +67,12 @@ for argline in eachline(argfile)
         push!(kwargs, :h => Point3(map(x -> parse(Float64, x), args[2:end])))
     elseif args[1] == "g"
         push!(kwargs, :g => parse(Float64, args[2]))
-    elseif args[1] in ["TGen_method", "TH_method"]
-        push!(kwargs, :TGen_method => args[2] |> parse |> eval)
-    elseif args[1] == "thermalizer_method"
-        push!(kwargs, :thermalizer_method => args[2] |> parse |> eval)
-    elseif args[1] == "batch_size"
-        push!(kwargs, :batch_size => parse(Int64, args[2]))
-    elseif args[1] == "adaptive_sample_size"
-        push!(kwargs, :adaptive_sample_size => parse(Int64, args[2]))
-    elseif args[1] == "skip"
-        push!(kwargs, :skip => parse(Int64, args[2]))
-
+    elseif args[1] == "zeta"
+        push!(kwargs, :zeta => parse(Float64, args[2]))
     elseif startswith(args[1], "spins") || startswith(args[1],"spin")
         println("TODO: custom initial spin vectors")
         exit(-1)
         # push!(spins, Point3{Float64}(map(x -> parse(Float64, x), args[2:end])))
-    elseif isempty(args[1])
-        continue
     else
         println("Did not recognise \"", argline, "\"")
     end

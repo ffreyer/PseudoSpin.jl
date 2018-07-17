@@ -25,7 +25,7 @@ function write_header!(
         adaptive_sample_size::Int64
     )
 
-    write(file, "V05")
+    write(file, "V06")
     write(file, N_points)
     write(file, TH_sweeps)
     write(file, TH_Temp)
@@ -42,13 +42,16 @@ function write_header!(
     #     end
     # end
     # NOTE this does not change file reading
-    write(file, 4);                 write(file, 2)
+    # NOTE except now it does because I added J3 and zeta
+    write(file, 5);                 write(file, 2)
     write(file, parameters.J1[1]);  write(file, parameters.J1[2])
     write(file, parameters.J2[1]);  write(file, parameters.J2[2])
+    write(file, parameters.J3[1]);  write(file, parameters.J3[2])
     write(file, parameters.K);      write(file, 0.0)
     write(file, 0.0);               write(file, 1.0)
     for _h in parameters.h; write(file, _h) end
     write(file, parameters.g)
+    write(file, parameters.zeta)
     write(file, T)
 
     write(file, do_parallel_tempering)
