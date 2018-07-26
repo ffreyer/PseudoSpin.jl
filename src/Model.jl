@@ -1,4 +1,5 @@
 const sqrt3 = sqrt(3.0)
+
 # The purpose of this type is to simplify branching.
 # Without this, you may want to call sweep(... J1, g), but there is no efficient
 # way to make sure that J1 propagates as J1 and g as g (instead of, say, K).
@@ -108,220 +109,6 @@ function update_edges!(n::SNode, xys::Vector{Float64}, zs::Vector{Float64})
     nothing
 end
 
-
-################################################################################
-#### total Energy functions
-################################################################################
-
-# NOTE
-# The order of calculations is not optimized here. This is fine because the
-# function only gets called once. This also helps verifying the correctness of
-# totalEnergy and deltaEnergy.
-
-# DEPRECATED
-function totalEnergy(
-        sgraph::SGraph,
-        spins::Vector{Point3{Float64}},
-        Js::Vector{Tuple{Float64, Float64}},
-        h::Point3{Float64}=Point3(0.)
-    )
-    E = 0.
-    for e in sgraph.second
-        E += Js[2][1] * (
-            spins[e.n1][1] * spins[e.n2][1] +
-            spins[e.n1][2] * spins[e.n2][2]
-        ) + Js[2][2] * spins[e.n1][3] * spins[e.n2][3]
-    end
-
-    for i in eachindex(sgraph.first)
-        e = sgraph.first[i]
-        E += Js[1][1] * e.xy + Js[1][2] * e.z
-        for p in sgraph.paths[i]
-            # I'll leave this as it is, because it's much easier to see whether
-            # this is right. With this being right one can easily check whether
-            # dE is right because E_tot2 == E_tot1 + dE has to be true
-            E += (Js[3][1] * e.xy + Js[3][2] * e.z) * (Js[4][1] * p.xy + Js[4][2] * p.z)
-            E += (Js[4][1] * e.xy + Js[4][2] * e.z) * (Js[3][1] * p.xy + Js[3][2] * p.z)
-        end
-    end
-
-    if !(Tuple(h) == (0., 0., 0.))
-        for S in spins
-            E -= dot(h, S)
-        end
-    end
-
-    E
-end
-
-
-# DEPRECATED
-# total Energy for (Js, h, g)
-function totalEnergy(
-        sgraph::SGraph,
-        spins::Vector{Point3{Float64}},
-        Js::Vector{Tuple{Float64, Float64}},
-        h::Point3{Float64},
-        g::Float64
-    )
-    # println("totalEnergy w/ g...")  # NOTE
-    # println("\t Js = ", Js)
-    # println("\t h = ", h)
-    # println("\t g = ", g)
-
-
-    E = 0.
-    for e in sgraph.second
-        E += Js[2][1] * (
-            spins[e.n1][1] * spins[e.n2][1] +
-            spins[e.n1][2] * spins[e.n2][2]
-        ) + Js[2][2] * spins[e.n1][3] * spins[e.n2][3]
-    end
-
-    for i in eachindex(sgraph.first)
-        e = sgraph.first[i]
-        E += Js[1][1] * e.xy + Js[1][2] * e.z
-        for p in sgraph.paths[i]
-            E += (Js[3][1] * e.xy + Js[3][2] * e.z) * (Js[4][1] * p.xy + Js[4][2] * p.z)
-            E += (Js[4][1] * e.xy + Js[4][2] * e.z) * (Js[3][1] * p.xy + Js[3][2] * p.z)
-        end
-    end
-
-    # Checked:
-    # factor 0.5 (overcounting edges)
-    # number of edges (12x a-b-c, 2x (overcounting) 6x c-a-b)
-    # edges/paths for first node correct
-    for ei in eachindex(sgraph.first)
-        e12 = sgraph.first[ei]
-        for e23 in sgraph.nodes[e12.n2].first   # LID: 1 -> 2 -> 1
-            e12 == e23 && continue
-            n3 = e23.n1 != e12.n2 ? e23.n1 : e23.n2
-            E += 0.5g * (
-                spins[e12.n1][1] * spins[e12.n2][1] * spins[n3][2] +
-                spins[e12.n1][1] * spins[e12.n2][2] * spins[n3][1] +
-                spins[e12.n1][2] * spins[e12.n2][1] * spins[n3][1] -
-                spins[e12.n1][2] * spins[e12.n2][2] * spins[n3][2]
-            )
-        end
-        for e23 in sgraph.nodes[e12.n1].first   # LID: 2 -> 1 -> 2
-            e12 == e23 && continue              # overcounting cause 2 <- 1 <- 2
-            n3 = e23.n1 != e12.n1 ? e23.n1 : e23.n2
-            E += 0.5g * (
-                spins[e12.n2][1] * spins[e12.n1][1] * spins[n3][2] +
-                spins[e12.n2][1] * spins[e12.n1][2] * spins[n3][1] +
-                spins[e12.n2][2] * spins[e12.n1][1] * spins[n3][1] -
-                spins[e12.n2][2] * spins[e12.n1][2] * spins[n3][2]
-            )
-        end
-    end
-
-    if !(Tuple(h) == (0., 0., 0.))
-        for S in spins
-            E -= dot(h, S)
-        end
-    end
-
-    E
-end
-
-
-"""
-    totalEnergy(sgraph, spins, parameters)
-
-Calculates the total energy of the current system.
-"""
-function totalEnergy(
-        sgraph::SGraph,
-        spins::Vector{Point3{Float64}},
-        param::Parameters
-    )
-    E = 0.
-    for e in sgraph.second
-        E += param.J2[1] * (
-            spins[e.n1][1] * spins[e.n2][1] +
-            spins[e.n1][2] * spins[e.n2][2]
-        ) + param.J2[2] * spins[e.n1][3] * spins[e.n2][3]
-        if e.plane == :xy
-            E += 2.0 * param.zeta * (
-                spins[e.n1][1] * spins[e.n2][1] -
-                spins[e.n1][2] * spins[e.n2][2]
-            )
-        elseif e.plane == :xz
-            E += param.zeta * (
-                -(
-                    spins[e.n1][1] * spins[e.n2][1] -
-                    spins[e.n1][2] * spins[e.n2][2]
-                ) - sqrt3 * (
-                    spins[e.n1][1] * spins[e.n2][2] +
-                    spins[e.n1][2] * spins[e.n2][1]
-                )
-            )
-        elseif e.plane == :yz
-            E += param.zeta * (
-                -(
-                    spins[e.n1][1] * spins[e.n2][1] -
-                    spins[e.n1][2] * spins[e.n2][2]
-                ) + sqrt3 * (
-                    spins[e.n1][1] * spins[e.n2][2] +
-                    spins[e.n1][2] * spins[e.n2][1]
-                )
-            )
-        else
-            error("Second neighbor plane defined incorrectly as $(e.plane).")
-        end
-    end
-
-    for e in sgraph.third
-        E += param.J3[1] * (
-            spins[e.n1][1] * spins[e.n2][1] +
-            spins[e.n1][2] * spins[e.n2][2]
-        ) + param.J3[2] * spins[e.n1][3] * spins[e.n2][3]
-    end
-
-    for i in eachindex(sgraph.first)
-        e = sgraph.first[i]
-        E += param.J1[1] * e.xy + param.J1[2] * e.z
-        for p in sgraph.paths[i]
-            # E += (Js[3][1] * e.xy + Js[3][2] * e.z) * (Js[4][1] * p.xy + Js[4][2] * p.z)
-            # E += (Js[4][1] * e.xy + Js[4][2] * e.z) * (Js[3][1] * p.xy + Js[3][2] * p.z)
-            E += param.K * (e.xy * p.z + e.z * p.xy)
-        end
-    end
-
-    # Checked:
-    # factor 0.5 (overcounting edges)
-    # number of edges (12x a-b-c, 2x (overcounting) 6x c-a-b)
-    # edges/paths for first node correct
-    for ei in eachindex(sgraph.first)
-        e12 = sgraph.first[ei]
-        for e23 in sgraph.nodes[e12.n2].first   # LID: 1 -> 2 -> 1
-            e12 == e23 && continue
-            n3 = e23.n1 != e12.n2 ? e23.n1 : e23.n2
-            E += 0.5param.g * (
-                spins[e12.n1][1] * spins[e12.n2][1] * spins[n3][2] +
-                spins[e12.n1][1] * spins[e12.n2][2] * spins[n3][1] +
-                spins[e12.n1][2] * spins[e12.n2][1] * spins[n3][1] -
-                spins[e12.n1][2] * spins[e12.n2][2] * spins[n3][2]
-            )
-        end
-        for e23 in sgraph.nodes[e12.n1].first   # LID: 2 -> 1 -> 2
-            e12 == e23 && continue              # overcounting cause 2 <- 1 <- 2
-            n3 = e23.n1 != e12.n1 ? e23.n1 : e23.n2
-            E += 0.5param.g * (
-                spins[e12.n2][1] * spins[e12.n1][1] * spins[n3][2] +
-                spins[e12.n2][1] * spins[e12.n1][2] * spins[n3][1] +
-                spins[e12.n2][2] * spins[e12.n1][1] * spins[n3][1] -
-                spins[e12.n2][2] * spins[e12.n1][2] * spins[n3][2]
-            )
-        end
-    end
-
-    for S in spins
-        E -= dot(param.h, S)
-    end
-
-    E
-end
 
 
 ################################################################################
@@ -541,7 +328,7 @@ for param_group in param_groups
 
             # ΔS for g, h, J2
             $((doJ2 || doJ3 || dog || doh || dozeta) && quote #-----------------
-                @fastmath @inbounds delta_s = new_spin .- spins[i]
+                @fastmath @inbounds delta_s .= new_spin .- spins[i]
             end) #--------------------------------------------------------------
 
             # J2/NNN
@@ -662,4 +449,219 @@ for param_group in param_groups
             return dE
         end
     end
+end
+
+
+################################################################################
+#### total Energy functions
+################################################################################
+
+# NOTE
+# The order of calculations is not optimized here. This is fine because the
+# function only gets called once. This also helps verifying the correctness of
+# totalEnergy and deltaEnergy.
+
+# DEPRECATED
+function totalEnergy(
+        sgraph::SGraph,
+        spins::Vector{Point3{Float64}},
+        Js::Vector{Tuple{Float64, Float64}},
+        h::Point3{Float64}=Point3(0.)
+    )
+    E = 0.
+    for e in sgraph.second
+        E += Js[2][1] * (
+            spins[e.n1][1] * spins[e.n2][1] +
+            spins[e.n1][2] * spins[e.n2][2]
+        ) + Js[2][2] * spins[e.n1][3] * spins[e.n2][3]
+    end
+
+    for i in eachindex(sgraph.first)
+        e = sgraph.first[i]
+        E += Js[1][1] * e.xy + Js[1][2] * e.z
+        for p in sgraph.paths[i]
+            # I'll leave this as it is, because it's much easier to see whether
+            # this is right. With this being right one can easily check whether
+            # dE is right because E_tot2 == E_tot1 + dE has to be true
+            E += (Js[3][1] * e.xy + Js[3][2] * e.z) * (Js[4][1] * p.xy + Js[4][2] * p.z)
+            E += (Js[4][1] * e.xy + Js[4][2] * e.z) * (Js[3][1] * p.xy + Js[3][2] * p.z)
+        end
+    end
+
+    if !(Tuple(h) == (0., 0., 0.))
+        for S in spins
+            E -= dot(h, S)
+        end
+    end
+
+    E
+end
+
+
+# DEPRECATED
+# total Energy for (Js, h, g)
+function totalEnergy(
+        sgraph::SGraph,
+        spins::Vector{Point3{Float64}},
+        Js::Vector{Tuple{Float64, Float64}},
+        h::Point3{Float64},
+        g::Float64
+    )
+    # println("totalEnergy w/ g...")  # NOTE
+    # println("\t Js = ", Js)
+    # println("\t h = ", h)
+    # println("\t g = ", g)
+
+
+    E = 0.
+    for e in sgraph.second
+        E += Js[2][1] * (
+            spins[e.n1][1] * spins[e.n2][1] +
+            spins[e.n1][2] * spins[e.n2][2]
+        ) + Js[2][2] * spins[e.n1][3] * spins[e.n2][3]
+    end
+
+    for i in eachindex(sgraph.first)
+        e = sgraph.first[i]
+        E += Js[1][1] * e.xy + Js[1][2] * e.z
+        for p in sgraph.paths[i]
+            E += (Js[3][1] * e.xy + Js[3][2] * e.z) * (Js[4][1] * p.xy + Js[4][2] * p.z)
+            E += (Js[4][1] * e.xy + Js[4][2] * e.z) * (Js[3][1] * p.xy + Js[3][2] * p.z)
+        end
+    end
+
+    # Checked:
+    # factor 0.5 (overcounting edges)
+    # number of edges (12x a-b-c, 2x (overcounting) 6x c-a-b)
+    # edges/paths for first node correct
+    for ei in eachindex(sgraph.first)
+        e12 = sgraph.first[ei]
+        for e23 in sgraph.nodes[e12.n2].first   # LID: 1 -> 2 -> 1
+            e12 == e23 && continue
+            n3 = e23.n1 != e12.n2 ? e23.n1 : e23.n2
+            E += 0.5g * (
+                spins[e12.n1][1] * spins[e12.n2][1] * spins[n3][2] +
+                spins[e12.n1][1] * spins[e12.n2][2] * spins[n3][1] +
+                spins[e12.n1][2] * spins[e12.n2][1] * spins[n3][1] -
+                spins[e12.n1][2] * spins[e12.n2][2] * spins[n3][2]
+            )
+        end
+        for e23 in sgraph.nodes[e12.n1].first   # LID: 2 -> 1 -> 2
+            e12 == e23 && continue              # overcounting cause 2 <- 1 <- 2
+            n3 = e23.n1 != e12.n1 ? e23.n1 : e23.n2
+            E += 0.5g * (
+                spins[e12.n2][1] * spins[e12.n1][1] * spins[n3][2] +
+                spins[e12.n2][1] * spins[e12.n1][2] * spins[n3][1] +
+                spins[e12.n2][2] * spins[e12.n1][1] * spins[n3][1] -
+                spins[e12.n2][2] * spins[e12.n1][2] * spins[n3][2]
+            )
+        end
+    end
+
+    if !(Tuple(h) == (0., 0., 0.))
+        for S in spins
+            E -= dot(h, S)
+        end
+    end
+
+    E
+end
+
+
+"""
+    totalEnergy(sgraph, spins, parameters)
+
+Calculates the total energy of the current system.
+"""
+function totalEnergy(
+        sgraph::SGraph,
+        spins::Vector{Point3{Float64}},
+        param::Parameters
+    )
+    E = 0.
+    for e in sgraph.second
+        E += param.J2[1] * (
+            spins[e.n1][1] * spins[e.n2][1] +
+            spins[e.n1][2] * spins[e.n2][2]
+        ) + param.J2[2] * spins[e.n1][3] * spins[e.n2][3]
+        if e.plane == :xy
+            E += 2.0 * param.zeta * (
+                spins[e.n1][1] * spins[e.n2][1] -
+                spins[e.n1][2] * spins[e.n2][2]
+            )
+        elseif e.plane == :xz
+            E += param.zeta * (
+                -(
+                    spins[e.n1][1] * spins[e.n2][1] -
+                    spins[e.n1][2] * spins[e.n2][2]
+                ) - sqrt3 * (
+                    spins[e.n1][1] * spins[e.n2][2] +
+                    spins[e.n1][2] * spins[e.n2][1]
+                )
+            )
+        elseif e.plane == :yz
+            E += param.zeta * (
+                -(
+                    spins[e.n1][1] * spins[e.n2][1] -
+                    spins[e.n1][2] * spins[e.n2][2]
+                ) + sqrt3 * (
+                    spins[e.n1][1] * spins[e.n2][2] +
+                    spins[e.n1][2] * spins[e.n2][1]
+                )
+            )
+        else
+            error("Second neighbor plane defined incorrectly as $(e.plane).")
+        end
+    end
+
+    for e in sgraph.third
+        E += param.J3[1] * (
+            spins[e.n1][1] * spins[e.n2][1] +
+            spins[e.n1][2] * spins[e.n2][2]
+        ) + param.J3[2] * spins[e.n1][3] * spins[e.n2][3]
+    end
+
+    for i in eachindex(sgraph.first)
+        e = sgraph.first[i]
+        E += param.J1[1] * e.xy + param.J1[2] * e.z
+        for p in sgraph.paths[i]
+            # E += (Js[3][1] * e.xy + Js[3][2] * e.z) * (Js[4][1] * p.xy + Js[4][2] * p.z)
+            # E += (Js[4][1] * e.xy + Js[4][2] * e.z) * (Js[3][1] * p.xy + Js[3][2] * p.z)
+            E += param.K * (e.xy * p.z + e.z * p.xy)
+        end
+    end
+
+    # Checked:
+    # factor 0.5 (overcounting edges)
+    # number of edges (12x a-b-c, 2x (overcounting) 6x c-a-b)
+    # edges/paths for first node correct
+    for ei in eachindex(sgraph.first)
+        e12 = sgraph.first[ei]
+        for e23 in sgraph.nodes[e12.n2].first   # LID: 1 -> 2 -> 1
+            e12 == e23 && continue
+            n3 = e23.n1 != e12.n2 ? e23.n1 : e23.n2
+            E += 0.5param.g * (
+                spins[e12.n1][1] * spins[e12.n2][1] * spins[n3][2] +
+                spins[e12.n1][1] * spins[e12.n2][2] * spins[n3][1] +
+                spins[e12.n1][2] * spins[e12.n2][1] * spins[n3][1] -
+                spins[e12.n1][2] * spins[e12.n2][2] * spins[n3][2]
+            )
+        end
+        for e23 in sgraph.nodes[e12.n1].first   # LID: 2 -> 1 -> 2
+            e12 == e23 && continue              # overcounting cause 2 <- 1 <- 2
+            n3 = e23.n1 != e12.n1 ? e23.n1 : e23.n2
+            E += 0.5param.g * (
+                spins[e12.n2][1] * spins[e12.n1][1] * spins[n3][2] +
+                spins[e12.n2][1] * spins[e12.n1][2] * spins[n3][1] +
+                spins[e12.n2][2] * spins[e12.n1][1] * spins[n3][1] -
+                spins[e12.n2][2] * spins[e12.n1][2] * spins[n3][2]
+            )
+        end
+    end
+
+    for S in spins
+        E -= dot(param.h, S)
+    end
+
+    E
 end
