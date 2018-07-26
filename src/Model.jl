@@ -328,7 +328,7 @@ for param_group in param_groups
 
             # ΔS for g, h, J2
             $((doJ2 || doJ3 || dog || doh || dozeta) && quote #-----------------
-                @fastmath @inbounds delta_s .= new_spin .- spins[i]
+                @fastmath @inbounds delta_s = new_spin - spins[i]
             end) #--------------------------------------------------------------
 
             # J2/NNN
