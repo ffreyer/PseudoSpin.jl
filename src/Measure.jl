@@ -1,4 +1,29 @@
-# Just measure! and simulate!
+# Just measure!
+@inline function flip1(i::Int64, s::Point3{Float64}, Nhalf::Int64)
+    if i <= Nhalf
+        return s
+    else
+        @inbounds return Point3{Float64}(-s[1], -s[2], s[3])
+    end
+end
+@inline function flip2(i::Int64, s::Point3{Float64}, Nhalf::Int64)
+    if i <= Nhalf
+        return s
+    else
+        return Point3{Float64}(-s[1], -s[2], -s[3])
+    end
+end
+@inline function flip3(i::Int64, s::Point3{Float64}, Nhalf::Int64)
+    return s
+end
+@inline function flip4(i::Int64, s::Point3{Float64}, Nhalf::Int64)
+    if i <= Nhalf
+        return s
+    else
+        @inbounds return Point3{Float64}(s[1], s[2], -s[3])
+    end
+end
+
 
 """
     measure!(
@@ -29,37 +54,9 @@ function measure!(
         batch_size::Int64
     )
 
-    const invN = 1. / sgraph.N_nodes
-
-    # Initialize binning analysis
-    E_BA = BinnerA(200)
-    Es = Array{Float64}(N_sweeps)
-
-    Mx_BA = BinnerA(200)
-    My_BA = BinnerA(200)
-    Mz_BA = BinnerA(200)
-
-    M2xy_BA = BinnerA(200)
-    M2z_BA = BinnerA(200)
-    M2xys = Array{Float64}(N_sweeps)
-    M2zs = Array{Float64}(N_sweeps)
-
-    Mquad_BA = BinnerA(200)
-    Moct_BA = BinnerA(200)
-
-    Dimer_xy = BinnerA(200)
-    Dimer_xy_var = BinnerA(200)
-    Dimer_z = BinnerA(200)
-    Dimer_z_var = BinnerA(200)
-
     # "Staggered" magnetizatio
     # Flips the xy and/or z direction if it maps the current system to a ferro-
     # magnetic one. Mostly use for automatic data evaluation
-    Nhalf = div(sgraph.N_nodes, 2)
-    @inline @inbounds flip1(i::Int64, s::Point3{Float64}) = i <= Nhalf ? s : [-s[1], -s[2], s[3]]
-    @inline flip2(i::Int64, s::Point3{Float64}) = i <= Nhalf ? s : -s
-    @inline flip3(i::Int64, s::Point3{Float64}) = s
-    @inline @inbounds flip4(i::Int64, s::Point3{Float64}) = i <= Nhalf ? s : [s[1], s[2], -s[3]]
 
     if sign(parameters.J1[1]) >= 0.0
         if sign(parameters.K) >= 0.0
@@ -73,27 +70,56 @@ function measure!(
         flip = flip4
     end
 
-    srMx = 0.0
-    srMy = 0.0
-    srMz = 0.0
+    measure!(
+        sgraph::SGraph,
+        spins::Vector{Point3{Float64}},
+        beta::Float64,
+        parameters::Parameters,
+        file::IOStream,
+        sweep::Function,
+        N_sweeps::Int64,
+        do_pt::Bool,
+        batch_size::Int64,
+        flip::Function
+    )
+end
 
-    srdMx = 0.0
-    srdMy = 0.0
-    srdMz = 0.0
 
-    srMxabs = 0.0
-    srMyabs = 0.0
-    srMzabs = 0.0
+function measure!(
+        sgraph::SGraph,
+        spins::Vector{Point3{Float64}},
+        beta::Float64,
+        parameters::Parameters,
+        file::IOStream,
+        sweep::Function,
+        N_sweeps::Int64,
+        do_pt::Bool,
+        batch_size::Int64,
+        flip::Function
+    )
 
-    srdMxabs = 0.0
-    srdMyabs = 0.0
-    srdMzabs = 0.0
+    const invN = 1. / sgraph.N_nodes
+    const Nhalf = div(sgraph.N_nodes, 2)
 
-    srM2xy = 0.0
-    srM2z = 0.0
+    # Initialize binning analysis
+    E_BA = BinnerA(200)
+    Es = Array{Float64}(N_sweeps)
 
-    srdM2xy = 0.0
-    srdM2z = 0.0
+    Mx_BA = BinnerA(200);   My_BA = BinnerA(200);   Mz_BA = BinnerA(200)
+
+    M2xy_BA = BinnerA(200);             M2z_BA = BinnerA(200)
+    M2xys = Array{Float64}(N_sweeps);   M2zs = Array{Float64}(N_sweeps)
+    Mquad_BA = BinnerA(200);            Moct_BA = BinnerA(200)
+    Dimer_xy = BinnerA(200);            Dimer_xy_var = BinnerA(200)
+    Dimer_z = BinnerA(200);             Dimer_z_var = BinnerA(200)
+
+    srMx = 0.0;     srMy = 0.0;     srMz = 0.0
+    srdMx = 0.0;    srdMy = 0.0;    srdMz = 0.0
+    srMxabs = 0.0;  srMyabs = 0.0;  srMzabs = 0.0
+    srdMxabs = 0.0; srdMyabs = 0.0; srdMzabs = 0.0
+
+    srM2xy = 0.0;   srM2z = 0.0
+    srdM2xy = 0.0;  srdM2z = 0.0
 
     E_tot = totalEnergy(sgraph, spins, parameters)
     switch = 1
@@ -103,7 +129,7 @@ function measure!(
         @inbounds Es[i] = E_tot * invN
         push!(E_BA, E_tot * invN)
 
-        S = sum(spins) * invN
+        S = reduce(+, spins) * invN
         @inbounds push!(Mx_BA, S[1])
         @inbounds push!(My_BA, S[2])
         @inbounds push!(Mz_BA, S[3])
@@ -113,7 +139,11 @@ function measure!(
         @inbounds push!(M2xy_BA, M2xys[i])
         @inbounds push!(M2z_BA, abs(S[3]))
 
-        @inbounds temp = mapreduce(v -> Point3{Float64}(0., sqrt(v[1] * v[1] + v[2] * v[2]), abs(v[3])), +, spins) * invN
+        @inbounds temp = mapreduce(
+            v -> Point3{Float64}(0., sqrt(v[1] * v[1] + v[2] * v[2]), abs(v[3])),
+            +,
+            spins
+        ) * invN
         @inbounds push!(Mquad_BA, temp[2])
         @inbounds push!(Moct_BA, temp[3])
 
@@ -134,13 +164,21 @@ function measure!(
 
 
         # if additional_observables
-        _spins = map(t -> flip(t...), enumerate(spins))
-        S = sum(_spins) * invN
+        _spins = map(t -> flip(t..., Nhalf), enumerate(spins))
+        # S = sum(_spins) * invN
+        S = reduce(+, Point3{Float64}(0.), _spins) * invN
         srMx += S[1]
         srMy += S[2]
         srMz += S[3]
 
-        vars = mapreduce(s -> (s - S).^2, +, _spins) * invN
+        # NOTE
+        # map, ... used with a function containing a constant causes that
+        # constant to be boxed and lose its type.
+        # This is a workaround for this
+        temp2 = similar(_spins)
+        for i in eachindex(temp2); temp2[i] = _spins[i] - S; end
+        vars = mapreduce(s -> s.^2, +, temp2) * invN
+        # vars = mapreduce(s -> (s - S).^2, +, _spins) * invN
         srdMx += vars[1]
         srdMy += vars[2]
         srdMz += vars[3]
@@ -153,7 +191,9 @@ function measure!(
         srMyabs += S[2]
         srMzabs += S[3]
 
-        vars = mapreduce(s -> (abs.(s) - S).^2, +, _spins) * invN
+        temp2 = similar(_spins)
+        for i in eachindex(temp2); temp2[i] = abs.(_spins[i]) - S; end
+        vars = mapreduce(s -> (s).^2, +, temp2) * invN
         srdMxabs += vars[1]
         srdMyabs += vars[2]
         srdMzabs += vars[3]
@@ -176,7 +216,9 @@ function measure!(
         )
     end
 
+    # TODO - This still has type instability due to constants in lambda function
     # This formula is wrong for k =/= 1
+    # dc/dT?
     f(x, x2, x3) = (
         (x3 - 3*x*x2 + 2*x^3) * beta^4 * sgraph.N_nodes -
         2 * (x2 - x^2) * beta^3
@@ -184,6 +226,8 @@ function measure!(
 
     cv, dcv = jackknife((x, x2) -> (x2 - x^2) * beta^2 * sgraph.N_nodes, Es, Es.^2)
     dcvdT, ddcvdT = jackknife(f, Es, Es.^2, Es.^3)
+    # TODO - This still has type instability due to constants in lambda function
+
     dM2xy, ddM2xy = jackknife((x, x2) -> (x2 - x^2), M2xys, M2xys.^2)
     dM2z, ddM2z = jackknife((x, x2) -> (x2 - x^2), M2zs, M2zs.^2)
 
@@ -205,7 +249,7 @@ function measure!(
     write_BA!(file, Dimer_xy_var, "DxyV ")
     write_BA!(file, Dimer_z, "Dz   ")
     write_BA!(file, Dimer_z_var, "DzV  ")
-
+    #
     #if additional_observables
     K = 1. / N_sweeps
     write_JK!(file, srMx * K, srdMx * K, "rMx  ")
