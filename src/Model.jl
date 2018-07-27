@@ -328,7 +328,7 @@ for param_group in param_groups
 
             # ΔS for g, h, J2
             $((doJ2 || doJ3 || dog || doh || dozeta) && quote #-----------------
-                @fastmath @inbounds delta_s = new_spin - spins[i]
+                @fastmath @inbounds delta_s = new_spin .- spins[i]
             end) #--------------------------------------------------------------
 
             # J2/NNN
@@ -365,7 +365,7 @@ for param_group in param_groups
             $(dozeta && quote #-------------------------------------------------
                 id = n.second
                 # So explicit, yet so implicit :o
-                dE += param.zeta * (
+                @inbounds dE += param.zeta * (
                     delta_s[1] * (
                         2.0 * ( # xy-plane terms
                             spins[id[1]][1] + spins[id[5]][1] +
