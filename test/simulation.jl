@@ -72,7 +72,9 @@ end
     sweep = sweep_picker(param)
     @test sweep == PseudoSpin.sweep_J1
 
-    for _ in 1:100
+    E_tot = sweep(sim, spins, E_tot, 1./10., param)
+    print("--J1           	"); gc()
+    @time for _ in 1:100
         E_tot = sweep(sim, spins, E_tot, 1./10., param)
     end
     @test E_tot ≈ totalEnergy(sim, spins, Js, h)
@@ -91,7 +93,9 @@ end
     sweep = sweep_picker(param)
     @test sweep == PseudoSpin.sweep_J2
 
-    for _ in 1:100
+    E_tot = sweep(sim, spins, E_tot, 1./10., param)
+    print("--J2           	"); gc()
+    @time for _ in 1:100
         E_tot = sweep(sim, spins, E_tot, 1./10., param)
     end
     @test E_tot ≈ totalEnergy(sim, spins, Js, h)
@@ -110,7 +114,9 @@ end
     sweep = sweep_picker(param)
     @test sweep == PseudoSpin.sweep_K
 
-    for _ in 1:100
+    E_tot = sweep(sim, spins, E_tot, 1./10., param)
+    print("--K            	"); gc()
+    @time for _ in 1:100
         E_tot = sweep(sim, spins, E_tot, 1./10., param)
     end
     @test E_tot ≈ totalEnergy(sim, spins, Js, h)
@@ -130,7 +136,9 @@ end
     sweep = sweep_picker(param)
     @test sweep == PseudoSpin.sweep_h
 
-    for _ in 1:100
+    E_tot = sweep(sim, spins, E_tot, 1./10., param)
+    print("--h            	"); gc()
+    @time for _ in 1:100
         E_tot = sweep(sim, spins, E_tot, 1./10., param)
     end
     @test E_tot ≈ totalEnergy(sim, spins, Js, h)
@@ -150,7 +158,9 @@ end
     sweep = sweep_picker(param)
     @test sweep == PseudoSpin.sweep_J1J2Kh
 
-    for _ in 1:100
+    E_tot = sweep(sim, spins, E_tot, 1./10., param)
+    print("--J1,J2,K,h    	"); gc()
+    @time for _ in 1:100
         E_tot = sweep(sim, spins, E_tot, 1./10., param)
     end
     @test E_tot ≈ totalEnergy(sim, spins, Js, h)
@@ -169,7 +179,9 @@ end
     sweep = sweep_picker(param)
     @test sweep == PseudoSpin.sweep_J1J2Kgh
 
-    for _ in 1:100
+    E_tot = sweep(sim, spins, E_tot, 1./10., param)
+    print("--J1,J2,K,h,g  	"); gc()
+    @time for _ in 1:100
         E_tot = sweep(sim, spins, E_tot, 1./10., param)
     end
     @test E_tot ≈ totalEnergy(sim, spins, Js, h, g)
@@ -189,7 +201,9 @@ end
     sweep = sweep_picker(param)
     @test sweep == PseudoSpin.sweep_J1g
 
-    for _ in 1:100
+    E_tot = sweep(sim, spins, E_tot, 1./10., param)
+    print("--J1,g         	"); gc()
+    @time for _ in 1:100
         E_tot = sweep(sim, spins, E_tot, 1./10., param)
     end
     @test E_tot ≈ totalEnergy(sim, spins, Js, h, g)
@@ -202,7 +216,9 @@ end
     sweep = sweep_picker(param)
     @test sweep == PseudoSpin.sweep_zeta
 
-    for _ in 1:100
+    E_tot = sweep(sim, spins, E_tot, 1./10., param)
+    print("--zeta         	"); gc()
+    @time for _ in 1:100
         E_tot = sweep(sim, spins, E_tot, 1./10., param)
     end
     @test E_tot ≈ totalEnergy(sim, spins, param)
@@ -214,7 +230,9 @@ end
     sweep = sweep_picker(param)
     @test sweep == PseudoSpin.sweep_J3
 
-    for _ in 1:100
+    E_tot = sweep(sim, spins, E_tot, 1./10., param)
+    print("--J3           	"); gc()
+    @time for _ in 1:100
         E_tot = sweep(sim, spins, E_tot, 1./10., param)
     end
     @test E_tot ≈ totalEnergy(sim, spins, param)
