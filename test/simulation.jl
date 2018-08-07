@@ -59,6 +59,7 @@ end
 
 # high temperature (10), so most spin flip attempts should be successful
 @testset "Testing E_total, sweep stack, parameters" begin
+    N_sweeps = 1000
     #-----------------------------------------------------
     ### anisotropic
     # NN
@@ -74,7 +75,7 @@ end
 
     E_tot = sweep(sim, spins, E_tot, 1./10., param)
     print("--J1           	"); gc()
-    @time for _ in 1:100
+    @time for _ in 1:N_sweeps
         E_tot = sweep(sim, spins, E_tot, 1./10., param)
     end
     @test E_tot ≈ totalEnergy(sim, spins, Js, h)
@@ -95,7 +96,7 @@ end
 
     E_tot = sweep(sim, spins, E_tot, 1./10., param)
     print("--J2           	"); gc()
-    @time for _ in 1:100
+    @time for _ in 1:N_sweeps
         E_tot = sweep(sim, spins, E_tot, 1./10., param)
     end
     @test E_tot ≈ totalEnergy(sim, spins, Js, h)
@@ -116,7 +117,7 @@ end
 
     E_tot = sweep(sim, spins, E_tot, 1./10., param)
     print("--K            	"); gc()
-    @time for _ in 1:100
+    @time for _ in 1:N_sweeps
         E_tot = sweep(sim, spins, E_tot, 1./10., param)
     end
     @test E_tot ≈ totalEnergy(sim, spins, Js, h)
@@ -138,7 +139,7 @@ end
 
     E_tot = sweep(sim, spins, E_tot, 1./10., param)
     print("--h            	"); gc()
-    @time for _ in 1:100
+    @time for _ in 1:N_sweeps
         E_tot = sweep(sim, spins, E_tot, 1./10., param)
     end
     @test E_tot ≈ totalEnergy(sim, spins, Js, h)
@@ -160,7 +161,7 @@ end
 
     E_tot = sweep(sim, spins, E_tot, 1./10., param)
     print("--J1,J2,K,h    	"); gc()
-    @time for _ in 1:100
+    @time for _ in 1:N_sweeps
         E_tot = sweep(sim, spins, E_tot, 1./10., param)
     end
     @test E_tot ≈ totalEnergy(sim, spins, Js, h)
@@ -181,7 +182,7 @@ end
 
     E_tot = sweep(sim, spins, E_tot, 1./10., param)
     print("--J1,J2,K,h,g  	"); gc()
-    @time for _ in 1:100
+    @time for _ in 1:N_sweeps
         E_tot = sweep(sim, spins, E_tot, 1./10., param)
     end
     @test E_tot ≈ totalEnergy(sim, spins, Js, h, g)
@@ -203,7 +204,7 @@ end
 
     E_tot = sweep(sim, spins, E_tot, 1./10., param)
     print("--J1,g         	"); gc()
-    @time for _ in 1:100
+    @time for _ in 1:N_sweeps
         E_tot = sweep(sim, spins, E_tot, 1./10., param)
     end
     @test E_tot ≈ totalEnergy(sim, spins, Js, h, g)
@@ -218,7 +219,7 @@ end
 
     E_tot = sweep(sim, spins, E_tot, 1./10., param)
     print("--zeta         	"); gc()
-    @time for _ in 1:100
+    @time for _ in 1:N_sweeps
         E_tot = sweep(sim, spins, E_tot, 1./10., param)
     end
     @test E_tot ≈ totalEnergy(sim, spins, param)
@@ -232,7 +233,7 @@ end
 
     E_tot = sweep(sim, spins, E_tot, 1./10., param)
     print("--J3           	"); gc()
-    @time for _ in 1:100
+    @time for _ in 1:N_sweeps
         E_tot = sweep(sim, spins, E_tot, 1./10., param)
     end
     @test E_tot ≈ totalEnergy(sim, spins, param)

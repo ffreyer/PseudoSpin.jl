@@ -150,24 +150,12 @@ ProfileView.view()
 
 
 
---J1              0.003635 seconds (17.94 k allocations: 1.962 MiB)
---J2              0.003721 seconds (34.14 k allocations: 2.457 MiB)
---K               0.004088 seconds (17.94 k allocations: 1.962 MiB)
---h               0.003570 seconds (34.14 k allocations: 2.457 MiB)
---J1,J2,K,h       0.004241 seconds (34.14 k allocations: 2.456 MiB)
---J1,J2,K,h,g     0.004660 seconds (34.14 k allocations: 2.456 MiB)
---J1,g            0.003892 seconds (34.14 k allocations: 2.456 MiB)
---zeta            0.004015 seconds (109.74 k allocations: 3.610 MiB)
---J3              0.004002 seconds (34.14 k allocations: 2.456 MiB)
-
-
-
---J1              0.003160 seconds (17.94 k allocations: 1.962 MiB)
---J2              0.003656 seconds (17.94 k allocations: 1.962 MiB)
---K               0.003797 seconds (17.94 k allocations: 1.962 MiB)
---h               0.003099 seconds (17.94 k allocations: 1.962 MiB)
---J1,J2,K,h       0.003837 seconds (17.94 k allocations: 1.962 MiB)
---J1,J2,K,h,g     0.004277 seconds (17.94 k allocations: 1.962 MiB)
---J1,g            0.003618 seconds (17.94 k allocations: 1.962 MiB)
---zeta            0.004116 seconds (93.54 k allocations: 3.116 MiB)
---J3              0.003409 seconds (17.94 k allocations: 1.962 MiB)
+--J1              0.017973 seconds (177.73 k allocations: 19.492 MiB)
+--J2              0.019289 seconds (177.73 k allocations: 19.492 MiB)
+--K               0.023963 seconds (177.73 k allocations: 19.492 MiB)
+--h               0.018609 seconds (177.73 k allocations: 19.492 MiB)
+--J1,J2,K,h       0.025527 seconds (177.73 k allocations: 19.492 MiB)
+--J1,J2,K,h,g     0.029076 seconds (177.73 k allocations: 19.492 MiB)
+--J1,g            0.022431 seconds (177.73 k allocations: 19.492 MiB)
+--zeta            0.025108 seconds (933.73 k allocations: 31.028 MiB, 4.42% gc time)
+--J3              0.019154 seconds (177.73 k allocations: 19.492 MiB)
