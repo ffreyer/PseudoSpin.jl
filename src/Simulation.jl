@@ -2,20 +2,19 @@ function thermalize!(
         sgraph::SGraph,
         spins::Vector{Point3{Float64}},
         T::Float64,
-        Js::Vector{Tuple{Float64, Float64}},
+        parameters::Parameters,
         thermalizer::AbstractThermalizationMethod,
-        h::Point3{Float64},
-        g::Float64,
+        sweep::Function,
         E_comp::Compressor
     )
     # print("correct\n")
     init_edges!(sgraph, spins)
-    E_tot = totalEnergy(sgraph, spins, Js, h, g)
+    E_tot = totalEnergy(sgraph, spins, parameters)
 
     if is_parallel(thermalizer)
         beta, state = initialize(thermalizer, T, sgraph, spins)
         while !done(thermalizer, state)
-            E_tot = sweep(sgraph, spins, E_tot, Js, beta, h, g)
+            E_tot = sweep(sgraph, spins, E_tot, beta, parameters)
             beta, E_tot, state = next(thermalizer, state, E_tot)
             push!(E_comp, E_tot)
             yield()
@@ -23,16 +22,16 @@ function thermalize!(
     else
         beta, state = initialize(thermalizer, T)
         while !done(thermalizer, state)
-            E_tot = sweep(sgraph, spins, E_tot, Js, beta, h, g)
+            E_tot = sweep(sgraph, spins, E_tot, beta, parameters)
             beta, state = next(thermalizer, state)
             push!(E_comp, E_tot)
             yield()
         end
     end
 
-    # NOTE Safety check, to be removed
+    # NOTE Safety check, can be removed
     init_edges!(sgraph, spins)
-    E_check = totalEnergy(sgraph, spins, Js, h, g)
+    E_check = totalEnergy(sgraph, spins, parameters)
     if !(E_tot ≈ E_check)
         warn("E_tot inconsistent after thermalization. $E_tot =/= $(E_check)")
         warn("On process #$(MPI.Comm_rank(MPI.COMM_WORLD))")
@@ -42,111 +41,25 @@ function thermalize!(
 
     last(thermalizer, state)
 end
-
-
-function thermalize_no_paths!(
-        sgraph::SGraph,
-        spins::Vector{Point3{Float64}},
-        T::Float64,
-        Js::Vector{Tuple{Float64, Float64}},
-        thermalizer::AbstractThermalizationMethod,
-        h::Point3{Float64},
-        g::Float64,
-        E_comp::Compressor
-    )
-    init_edges!(sgraph, spins)
-    E_tot = totalEnergy(sgraph, spins, Js, h, g)
-
-    if is_parallel(thermalizer)
-        beta, state = initialize(thermalizer, T, sgraph, spins)
-        while !done(thermalizer, state)
-            E_tot = sweep_no_paths(sgraph, spins, E_tot, Js, beta, h, g)
-            beta, E_tot, state = next(thermalizer, state, E_tot)
-            push!(E_comp, E_tot)
-            yield()
-        end
-    else
-        beta, state = initialize(thermalizer, T)
-        while !done(thermalizer, state)
-            E_tot = sweep_no_paths(sgraph, spins, E_tot, Js, beta, h, g)
-            beta, state = next(thermalizer, state)
-            push!(E_comp, E_tot)
-            yield()
-        end
-    end
-
-    # NOTE Safety check, to be removed
-    init_edges!(sgraph, spins)
-    E_check = totalEnergy(sgraph, spins, Js, h, g)
-    if !(E_tot ≈ E_check)
-        warn("E_tot inconsistent after thermalization. $E_tot =/= $(E_check)")
-        warn("On process #$(MPI.Comm_rank(MPI.COMM_WORLD))")
-        MPI.Finalize()
-        exit()
-    end
-
-    last(thermalizer, state)
-end
-
-
-function thermalize!(
-        sgraph::SGraph,
-        spins::Vector{Point3{Float64}},
-        T::Float64,
-        Js::Vector{Tuple{Float64, Float64}},
-        thermalizer::AbstractThermalizationMethod,
-        h::Point3{Float64},
-        E_comp::Compressor
-    )
-    init_edges!(sgraph, spins)
-    E_tot = totalEnergy(sgraph, spins, Js, h)
-
-    if is_parallel(thermalizer)
-        beta, state = initialize(thermalizer, T, sgraph, spins)
-        while !done(thermalizer, state)
-            E_tot = sweep(sgraph, spins, E_tot, Js, beta, h)
-            beta, E_tot, state = next(thermalizer, state, E_tot)
-            push!(E_comp, E_tot)
-            yield()
-        end
-    else
-        beta, state = initialize(thermalizer, T)
-        while !done(thermalizer, state)
-            E_tot = sweep(sgraph, spins, E_tot, Js, beta, h)
-            beta, state = next(thermalizer, state)
-            push!(E_comp, E_tot)
-            yield()
-        end
-    end
-
-    # NOTE Safety check, to be removed
-    init_edges!(sgraph, spins)
-    E_check = totalEnergy(sgraph, spins, Js, h)
-    if !(E_tot ≈ E_check)
-        warn("E_tot inconsistent after thermalization. $E_tot =/= $(E_check)")
-        warn("On process #$(MPI.Comm_rank(MPI.COMM_WORLD))")
-        MPI.Finalize()
-        exit()
-    end
-
-    last(thermalizer, state)
-end
-
-
-################################################################################
-################################################################################
-################################################################################
-
 
 
 # Single Temperature simulate
-"""
-    simulate!(sgraph, spins, sys_size, path, filename, T, Js, TH_method, ME_sweeps, h)
-
-Starts a simulation on a given lattice (sgraph) with given spins, including
-thermalization and measurement sweeps. The results will be saved to a file
-created in path.
-"""
+# """
+#     simulate!(
+#         sgraph,
+#         spins,
+#         sys_size,
+#         path,
+#         filename,
+#         T,
+#         parameters,
+#         thermalizer,
+#         ME_sweeps
+#     )
+#
+# Starts a simulation on a given lattice (sgraph) with given spins for a single
+# temperature T. The results will be saved to a file filename created in path.
+# """
 function simulate!(
         sgraph::SGraph,
         spins::Vector{Point3{Float64}},
@@ -154,20 +67,10 @@ function simulate!(
         path::String,
         filename::String,
         T::Float64,
-        Js::Vector{Tuple{Float64, Float64}},
+        parameters::Parameters,
         thermalizer::AbstractThermalizationMethod,
         ME_sweeps::Int64,
-        h::Point3{Float64}=Point3(0.),
-        g::Float64 = 0.
     )
-
-    # println("Simulate...")
-    # println("\t #therm = ", length(TH_method)) # NOTE
-    # println("\t T = ", T)
-    # println("\t Js = ", Js)
-    # println("\t g = ", g)
-    # println("\t h = ", h)
-    # println("\t #messure = ", ME_sweeps)
 
     # Thermalization
     if T <= 0.0
@@ -178,20 +81,8 @@ function simulate!(
     # TODO
     # Add a variable to control the compression level here?
     E_comp = Compressor(1000)
-
-    if g == 0.0
-        beta = thermalize!(
-            sgraph, spins, T, Js, thermalizer, h, E_comp
-        )
-    elseif (Js[3][1] == Js[3][2] == 0.0) || (Js[4][1] == Js[4][2] == 0.0)
-        beta = thermalize_no_paths!(
-            sgraph, spins, T, Js, thermalizer, h, g, E_comp
-        )
-    else
-        beta = thermalize!(
-            sgraph, spins, T, Js, thermalizer, h, g, E_comp
-        )
-    end
+    sweep = sweep_picker(parameters)
+    beta = thermalize!(sgraph, spins, T, parameters, thermalizer, sweep, E_comp)
 
     # Fool-proof? file creation
     if !isdir(path)
@@ -210,31 +101,21 @@ function simulate!(
 
     write_header!(
         file, 1, length(thermalizer), T_max(thermalizer), ME_sweeps, sys_size,
-        Int64(sgraph.N_nodes), sgraph.K_edges, Js, h, g, max(0.0, 1.0 / beta), #T,
+        Int64(sgraph.N_nodes), sgraph.K_edges,
+        parameters,
+        max(0.0, 1.0 / beta),
         is_parallel(thermalizer),
         batch_size(thermalizer),
         adaptive_sample_size(thermalizer)
     )
 
-    write_Comp!(file, E_comp, "E-th ")
+    write_Comp!(file, E_comp, "E_th ")
 
     # Measurement
-    if g == 0.0
-        measure!(
-            sgraph, spins, beta, Js, file, ME_sweeps, h,
-            is_parallel(thermalizer), batch_size(thermalizer)
-        )
-    elseif (Js[3][1] == Js[3][2] == 0.0) || (Js[4][1] == Js[4][2] == 0.0)
-        measure_no_paths!(
-            sgraph, spins, beta, Js, file, ME_sweeps, h, g,
-            is_parallel(thermalizer), batch_size(thermalizer)
-        )
-    else
-        measure!(
-            sgraph, spins, beta, Js, file, ME_sweeps, h, g,
-            is_parallel(thermalizer), batch_size(thermalizer)
-        )
-    end
+    measure!(
+        sgraph, spins, beta, parameters, file, sweep, ME_sweeps,
+        is_parallel(thermalizer), batch_size(thermalizer)
+    )
 
     close(file)
 
@@ -242,6 +123,24 @@ function simulate!(
 end
 
 
+# Multi temperature simulate!
+# """
+#     simulate!(
+#         sgraph,
+#         spins,
+#         sys_size,
+#         path,
+#         filename,
+#         Ts,
+#         parameters,
+#         thermalizer,
+#         ME_sweeps
+#     )
+#
+# Starts a simulation on a given lattice (sgraph) with given spins for a set of
+# temperatures Ts. The results will be saved to a file filename1...filenameN
+# created in path.
+# """
 function simulate!(
         sgraph::SGraph,
         spins::Vector{Point3{Float64}},
@@ -249,11 +148,9 @@ function simulate!(
         path::String,
         filename::String,
         Ts::Vector{Float64},    # <- multiple
-        Js::Vector{Tuple{Float64, Float64}},
+        parameters::Parameters,
         thermalizer::AbstractThermalizationMethod,
-        ME_sweeps::Int64,
-        h::Point3{Float64}=Point3(0.),
-        g::Float64 = 0.
+        ME_sweeps::Int64
     )
 
     if is_parallel(thermalizer)
@@ -268,8 +165,8 @@ function simulate!(
         simulate!(
             sgraph, spins, sys_size,
             path, filename * string(i),
-            Ts[i], Js,
-            thermalizer, ME_sweeps, h, g
+            Ts[i], parameters,
+            thermalizer, ME_sweeps
         )
         MPI.Finalize()
     else
@@ -277,7 +174,7 @@ function simulate!(
             simulate!(
                 sgraph, spins, sys_size,
                 path, filename * string(i),
-                T, Js,
+                T, parameters,
                 thermalizer, ME_sweeps, h, g
             )
         end
@@ -289,44 +186,83 @@ end
 
 """
     simulate!(;
+        # location/name of data files (results)
         path::String = "",
         folder::String = "",
-        filename::String = "",
+        filename::String = "T",
 
+        # Simulation graph setup
         neighbor_search_depth::Int64 = 2,
         do_paths::Bool = true,
         L::Int64 = 6,
-        spins::Union{Vector{Point3{Float64}}, Void} = rand_spin(2*L^3),
+        spins::Vector{Point3{Float64}} = rand_spin(2*L^3),
 
-        Ts::Vector{Float64} = [1.0],
+        # Temperatures
+        T::Float64 = 1.0,
+        Ts::Vector{Float64} = [T],
+
+        # Parameters
         J1::Float64 = 0.,
         J2::Float64 = 0.,
+        lambda::Float64 = 0.,
+        J1s::NTuple{2, Float64} = (J1, lambda*J1),
+        J2s::NTuple{2, Float64} = (J2, lambda*J2),
         K::Float64 = 0.,
-        lambda::Float64 = 0.
-        Js::Vector{Tuple{Float64, Float64}} = [
-            (J1, lambda*J1),
-            (J2, lambda*J2),
-            (K, 0.0), (0.0, 1.0)
-        ],
         h::Point3{Float64} = Point3(0.),
-        g::Float64 = 0.
-
-        TH_sweeps::Int64 = 2_000_000,
-        N_switch::Int64 = div(TH_sweeps, 2),
-        Freeze_temperature::Float64 = 1.5*maximum(Ts),
-        thermalizer::AbstractThermalizationMethod = Freezer(
-            N = TH_sweeps,
-            T_max = Freeze_temperature,
-            N_switch = N_switch
+        g::Float64 = 0.,
+        parameters::Parameters = Parameters(
+            J1s = J1s,
+            J2s = J2s,
+            K = K,
+            g = g,
+            h = h
         ),
+
+        # Thermalization - Temperature generator
+        # Number of thermalization sweeps
+        TH_sweeps::Int64 = 2_000_000,
+        # Number of steps after which Freezer becomes constant
+        N_switch::Int64 = div(TH_sweeps, 2),
+        # Starting temperature of Freezer
+        Freeze_temperature::Float64 = 1.5*maximum(Ts),
+        # can be: Freezer (simulated annealing) or ConstantT
+        TGen_method::Type{<:AbstractTemperatureGenerator} = Freezer,
+
+        # Thermalization - Parallel Tempering
+        # Number of sweeps between parallel_tempering exchanges
+        batch_size::Int64 = 10,
+        # Number of sweeps between adaptive steps
+        adaptive_sample_size::Int64 = 100batch_size,
+        # Number of sweeps skipped in adaptive algorithm (to thermalize system)
+        skip::Int64 = div(TH_sweeps, 2),
+        # can be: NoParallelTempering, ParallelTempering, ProbabilityEqualizer
+        thermalizer_method::Type{
+            <:AbstractParallelTemperingAlgorithm
+        } = NoParallelTempering,
+
+        # Thermalization - build thermalizer
+        thermalizer::AbstractThermalizationMethod = thermalizer_method{
+            TGen_method
+        }(
+            N = TH_sweeps,
+            N_switch = N_switch,
+            T_max = Freeze_temperature,
+            batch_size = batch_size,
+            adaptive_sample_size = adaptive_sample_size,
+            skip = skip
+        ),
+
+        # Number of measurement sweeps
         ME_sweeps::Int64 = 5_000_000
     )
+
+Starts a simulation with the given keyword arguments.
 """
 function simulate!(;
         # files
         path::String = "",
         folder::String = "",
-        filename::String = "",
+        filename::String = "T",
         # Simulation graph
         neighbor_search_depth::Int64 = 2,
         do_paths::Bool = true,
@@ -337,15 +273,24 @@ function simulate!(;
         Ts::Vector{Float64} = [T],
         J1::Float64 = 0.,
         J2::Float64 = 0.,
-        K::Float64 = 0.,
+        J3::Float64 = 0.,
         lambda::Float64 = 0.,
-        Js::Vector{Tuple{Float64, Float64}} = [
-            (J1, lambda*J1),
-            (J2, lambda*J2),
-            (K, 0.0), (0.0, 1.0)
-        ],
+        J1s::NTuple{2, Float64} = (J1, lambda*J1),
+        J2s::NTuple{2, Float64} = (J2, lambda*J2),
+        J3s::NTuple{2, Float64} = (J3, lambda*J3),
+        K::Float64 = 0.,
         h::Point3{Float64} = Point3(0.),
         g::Float64 = 0.,
+        zeta::Float64 = 0.,
+        parameters::Parameters = Parameters(
+            J1s = J1s,
+            J2s = J2s,
+            J3s = J3s,
+            K = K,
+            g = g,
+            h = h,
+            zeta = zeta
+        ),
         # Thermalization - Temperature generator
         TH_sweeps::Int64 = 2_000_000,
         N_switch::Int64 = div(TH_sweeps, 2),
@@ -400,10 +345,9 @@ function simulate!(;
         sim, spins,L,
         path * folder, filename,
         length(Ts) == 1 ? T : Ts,
-        Js,
+        parameters,
         thermalizer,
-        ME_sweeps,
-        h, g
+        ME_sweeps
     )
 
     nothing

@@ -56,8 +56,9 @@ export rand_spin, rand_spin!, get_positions
 # Essential Metropolis functions (energy, sweep, ...)
 include("Model.jl")
 export init_edges!
-export totalEnergy, deltaEnergy
-export kernel, sweep
+export totalEnergy#, deltaEnergy
+# export kernel, sweep
+export Parameters, sweep_picker
 
 # Simulated Annealing, parallel tempering
 include("ThermalizationMethods.jl")

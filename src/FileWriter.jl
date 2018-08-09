@@ -15,16 +15,17 @@ function write_header!(
         sys_size::Int64,
         N_nodes::Int64,
         K_edges::Int64,
-        Js::Vector{Tuple{Float64, Float64}},
-        h::Point3{Float64},
-        g::Float64,
+        # Js::Vector{Tuple{Float64, Float64}},
+        # h::Point3{Float64},
+        # g::Float64,
+        parameters::Parameters,
         T::Float64,
         do_parallel_tempering::Bool,
         batch_size::Int64,
         adaptive_sample_size::Int64
     )
 
-    write(file, "V05")
+    write(file, "V06")
     write(file, N_points)
     write(file, TH_sweeps)
     write(file, TH_Temp)
@@ -33,15 +34,24 @@ function write_header!(
     write(file, N_nodes)
     write(file, K_edges)
 
-    write(file, length(Js))
-    write(file, length(Js[1]))
-    for J in Js
-        for value in J
-            write(file, value)
-        end
-    end
-    for _h in h; write(file, _h) end
-    write(file, g)
+    # write(file, length(Js))
+    # write(file, length(Js[1]))
+    # for J in Js
+    #     for value in J
+    #         write(file, value)
+    #     end
+    # end
+    # NOTE this does not change file reading
+    # NOTE except now it does because I added J3 and zeta
+    write(file, 5);                 write(file, 2)
+    write(file, parameters.J1[1]);  write(file, parameters.J1[2])
+    write(file, parameters.J2[1]);  write(file, parameters.J2[2])
+    write(file, parameters.J3[1]);  write(file, parameters.J3[2])
+    write(file, parameters.K);      write(file, 0.0)
+    write(file, 0.0);               write(file, 1.0)
+    for _h in parameters.h; write(file, _h) end
+    write(file, parameters.g)
+    write(file, parameters.zeta)
     write(file, T)
 
     write(file, do_parallel_tempering)
