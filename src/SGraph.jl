@@ -306,11 +306,12 @@ function connect_nodes!(
         end
 
         # a - x - b
-        for i in 1:3        # picks a
+        l = length(x.first)
+        for i in 1:l-1        # picks a
             axe = x.first[i]
             ai = axe.n1 == xi ? axe.n2 : axe.n1
             bs = Int64[]
-            for j in i+1:4  # picks b
+            for j in i+1:l  # picks b
                 xbe = x.first[j]
                 bi = xbe.n1 == xi ? xbe.n2 : xbe.n1
                 push!(bs, bi)
