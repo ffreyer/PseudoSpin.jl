@@ -7,7 +7,7 @@ abstract type SEdge end
 # Edge for first order neighbours & paths
 # (which are made up of first order edges)
 # preallocating scalar products (xy, z) should speed up path calculations
-type SEdge1 <: SEdge
+mutable struct SEdge1 <: SEdge
     xy::Float64
     z::Float64
 
@@ -18,7 +18,7 @@ end
 # Edge for second (...) order neighbours.
 # pre-allocating scalar products would be a net loss here
 # (+45 allocations, +21 additions if my math is correct)
-immutable SEdge2 <: SEdge
+struct SEdge2 <: SEdge
     n1::Int64
     n2::Int64
     plane::Symbol
@@ -30,7 +30,7 @@ struct GEdge <: SEdge
 end
 
 
-immutable SNode
+struct SNode
     first::Vector{SEdge1}
     second::Vector{Int64}
     third::Vector{Int64}
@@ -42,7 +42,7 @@ immutable SNode
 end
 
 
-type SGraph
+mutable struct SGraph
     N_nodes::Int64
     K_edges::Int64
     K_paths::Int64
@@ -87,7 +87,7 @@ end
 ################################################################################
 
 
-function define_first!{T <: SEdge}(A::Vector{T}, item::T)
+function define_first!(A::Vector{T}, item::T) where {T <: SEdge}
     for i in eachindex(A)
         if !isdefined(A, i)
             A[i] = item

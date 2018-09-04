@@ -98,8 +98,8 @@ function measure!(
         flip::Function
     )
 
-    const invN = 1. / sgraph.N_nodes
-    const Nhalf = div(sgraph.N_nodes, 2)
+    invN = 1. / sgraph.N_nodes
+    Nhalf = div(sgraph.N_nodes, 2)
 
     # Initialize binning analysis
     E_BA = BinnerA(200)
@@ -176,7 +176,7 @@ function measure!(
         # constant to be boxed and lose its type.
         # This is a workaround for this
         temp2 = similar(_spins)
-        for i in eachindex(temp2); temp2[i] = _spins[i] - S; end
+        for j in eachindex(temp2); temp2[j] = _spins[j] - S; end
         vars = mapreduce(s -> s.^2, +, temp2) * invN
         # vars = mapreduce(s -> (s - S).^2, +, _spins) * invN
         srdMx += vars[1]
@@ -192,7 +192,7 @@ function measure!(
         srMzabs += S[3]
 
         temp2 = similar(_spins)
-        for i in eachindex(temp2); temp2[i] = abs.(_spins[i]) - S; end
+        for j in eachindex(temp2); temp2[j] = abs.(_spins[j]) - S; end
         vars = mapreduce(s -> (s).^2, +, temp2) * invN
         srdMxabs += vars[1]
         srdMyabs += vars[2]

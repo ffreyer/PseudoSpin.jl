@@ -318,8 +318,10 @@ function simulate!(;
         ME_sweeps::Int64 = 5_000_000
     )
 
-    @assert !is_parallel(thermalizer) || (length(Ts) > 1) "Parallel tempering only\
-     works with multiple Temperatures!"
+    @assert(
+        !is_parallel(thermalizer) || (length(Ts) > 1),
+        "Parallel tempering only works with multiple Temperatures!"
+    )
 
     # println("Do parallel tempering? $do_parallel_tempering")
 

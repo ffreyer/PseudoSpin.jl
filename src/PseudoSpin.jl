@@ -34,11 +34,14 @@ const Vec3f0 = Vec{3, Float32}
 
 
 # I'm implementing new methods for these functions
-import Base.*, Base.==, Base.in, Base.findfirst#, Base.show
+import Base: *, ==, in, findfirst, push!#, Base.show
 # import Base.start, Base.next, Base.length, Base.done, Base.eltype
 import Base: length, next, done, last
-import Base.push!, Base.mean, Base.var
-
+if VERSION >= v"0.7.0"
+    import Statistics: mean, var
+else
+    import Base: mean, var
+end
 
 # Bravais lattice vectors, positions
 include("Crystal.jl")

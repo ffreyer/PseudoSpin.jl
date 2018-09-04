@@ -1,5 +1,5 @@
 # As in R = R_0 + u e_x + v e_y + w e_z
-type Bravais
+mutable struct Bravais
     pos::Point3f0
     x::Vec3f0
     y::Vec3f0

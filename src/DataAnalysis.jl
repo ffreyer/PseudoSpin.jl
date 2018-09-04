@@ -7,13 +7,13 @@
 # is one of these for each binning level. Since when two values should be
 # compressed, this is done immediately, so that only one value needs to be saved.
 # switch indicates whether value should be written to or averaging should happen.
-type BinningCompressor
+mutable struct BinningCompressor
     value::Float64
     switch::UInt8
 end
 
 
-type BinnerA
+mutable struct BinnerA
     # list of Compressors, one per level
     compressors::Vector{BinningCompressor}
 
@@ -200,7 +200,7 @@ end
 # This is kept very simplistic. The width of bins is fixed and bins are created
 # when needed. bin width should be somewhere in the range of 0.001 - 0.0001.
 
-type BinnerH
+mutable struct BinnerH
     data::Dict{Int64, Int64}
     bin_width::Float64
 
