@@ -43,7 +43,7 @@ binning. Returns a Binning Analysis object. Use push! to add values.
 function BinnerA(min_output_size::Integer)
     BinnerA(
         BinningCompressor[],
-        Array{Float64}(2 * min_output_size),
+        Array{Float64}(undef, 2 * min_output_size),
         UInt32(1),
         UInt32(2 * min_output_size),
         Int64[],
@@ -256,7 +256,7 @@ function jackknife(f::Function, args...)
 
     # outputs mean and standard deviation of the distribution of means (which
     # is the standard error of ys)
-    y0, sqrt((N-1) / N * sum((y_avs - y0).^2))
+    y0, sqrt((N-1) / N * sum((y_avs .- y0).^2))
 end
 
 

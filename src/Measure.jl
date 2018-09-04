@@ -103,12 +103,13 @@ function measure!(
 
     # Initialize binning analysis
     E_BA = BinnerA(200)
-    Es = Array{Float64}(N_sweeps)
+    Es = Array{Float64}(undef, N_sweeps)
 
     Mx_BA = BinnerA(200);   My_BA = BinnerA(200);   Mz_BA = BinnerA(200)
 
     M2xy_BA = BinnerA(200);             M2z_BA = BinnerA(200)
-    M2xys = Array{Float64}(N_sweeps);   M2zs = Array{Float64}(N_sweeps)
+    M2xys = Array{Float64}(undef, N_sweeps)
+    M2zs = Array{Float64}(undef, N_sweeps)
     Mquad_BA = BinnerA(200);            Moct_BA = BinnerA(200)
     Dimer_xy = BinnerA(200);            Dimer_xy_var = BinnerA(200)
     Dimer_z = BinnerA(200);             Dimer_z_var = BinnerA(200)
@@ -166,7 +167,7 @@ function measure!(
         # if additional_observables
         _spins = map(t -> flip(t..., Nhalf), enumerate(spins))
         # S = sum(_spins) * invN
-        S = reduce(+, Point3{Float64}(0.), _spins) * invN
+        S = reduce(+, _spins) * invN
         srMx += S[1]
         srMy += S[2]
         srMz += S[3]

@@ -1,5 +1,5 @@
 using PseudoSpin
-using Base.Test
+using Test
 
 isfile("output/full_test.part") && rm("output/full_test.part")
 

@@ -3,13 +3,6 @@ module PseudoSpin
 __precompile__(true)
 
 
-# Bleh
-# if VERSION == v"0.4.5"
-#     typealias _String ASCIIString
-# else
-#     typealias _String String
-# end
-
 # SLURM WORKAROUND
 # Don't import this so this package can run without loading MPI libraries
 # If MPI is used without importing it this will crash, but that's fine
@@ -27,6 +20,8 @@ catch e
         throw(e)
     end
 end
+using LinearAlgebra
+
 const Vec3 = Vec{3}
 const Point3 = Point{3}
 const Point3f0 = Point{3, Float32}
