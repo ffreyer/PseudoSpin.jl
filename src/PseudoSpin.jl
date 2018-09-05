@@ -3,13 +3,6 @@ module PseudoSpin
 __precompile__(true)
 
 
-# Bleh
-# if VERSION == v"0.4.5"
-#     typealias _String ASCIIString
-# else
-#     typealias _String String
-# end
-
 # SLURM WORKAROUND
 # Don't import this so this package can run without loading MPI libraries
 # If MPI is used without importing it this will crash, but that's fine
@@ -27,6 +20,8 @@ catch e
         throw(e)
     end
 end
+using LinearAlgebra
+
 const Vec3 = Vec{3}
 const Point3 = Point{3}
 const Point3f0 = Point{3, Float32}
@@ -34,11 +29,14 @@ const Vec3f0 = Vec{3, Float32}
 
 
 # I'm implementing new methods for these functions
-import Base.*, Base.==, Base.in, Base.findfirst#, Base.show
+import Base: *, ==, in, findfirst, push!#, Base.show
 # import Base.start, Base.next, Base.length, Base.done, Base.eltype
 import Base: length, next, done, last
-import Base.push!, Base.mean, Base.var
-
+if VERSION >= v"0.7.0"
+    import Statistics: mean, var
+else
+    import Base: mean, var
+end
 
 # Bravais lattice vectors, positions
 include("Crystal.jl")

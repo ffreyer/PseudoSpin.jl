@@ -7,7 +7,7 @@ abstract type SEdge end
 # Edge for first order neighbours & paths
 # (which are made up of first order edges)
 # preallocating scalar products (xy, z) should speed up path calculations
-type SEdge1 <: SEdge
+mutable struct SEdge1 <: SEdge
     xy::Float64
     z::Float64
 
@@ -18,7 +18,7 @@ end
 # Edge for second (...) order neighbours.
 # pre-allocating scalar products would be a net loss here
 # (+45 allocations, +21 additions if my math is correct)
-immutable SEdge2 <: SEdge
+struct SEdge2 <: SEdge
     n1::Int64
     n2::Int64
     plane::Symbol
@@ -30,7 +30,7 @@ struct GEdge <: SEdge
 end
 
 
-immutable SNode
+struct SNode
     first::Vector{SEdge1}
     second::Vector{Int64}
     third::Vector{Int64}
@@ -42,7 +42,7 @@ immutable SNode
 end
 
 
-type SGraph
+mutable struct SGraph
     N_nodes::Int64
     K_edges::Int64
     K_paths::Int64
@@ -87,7 +87,7 @@ end
 ################################################################################
 
 
-function define_first!{T <: SEdge}(A::Vector{T}, item::T)
+function define_first!(A::Vector{T}, item::T) where {T <: SEdge}
     for i in eachindex(A)
         if !isdefined(A, i)
             A[i] = item
@@ -188,8 +188,8 @@ function connect_nodes!(
                 if l != 0
                     if lvl == 1
                         e = SEdge1(-1., -1., i, l)
-                        k = findfirst(first, e)
-                        if k != 0
+                        k = findfirst(isequal(e), first)
+                        if k != nothing
                             push!(nodes[i].first, first[k])
                         else
                             push!(nodes[i].first, e)
@@ -202,8 +202,8 @@ function connect_nodes!(
                             :xz, :yz, :xz, :xy
                         ][ri]
                         e = SEdge2(i, l, plane)
-                        k = findfirst(second, e)
-                        if k != 0
+                        k = findfirst(isequal(e), second)
+                        if k != nothing
                             push!(nodes[i].second, l)
                         else
                             push!(nodes[i].second, l)
@@ -211,8 +211,8 @@ function connect_nodes!(
                         end
                     elseif lvl == 3
                         e = SEdge2(i, l, :None)
-                        k = findfirst(third, e)
-                        if k != 0
+                        k = findfirst(isequal(e), third)
+                        if k != nothing
                             push!(nodes[i].third, l)
                         else
                             push!(nodes[i].third, l)
@@ -244,8 +244,9 @@ function connect_nodes!(
             rnode = e.n1 <= div(length(nodes), 2) ? rgraph.nodes[1] : rgraph.nodes[2] # TODO check this
 
             # get neighbour index from nodes   ..., path?
-            nei1 = findfirst(n1.first, e)
-            nei2 = findfirst(n2.first, e)
+            # TODO is this ever nothing/0?
+            nei1 = something(findfirst(isequal(e), n1.first), 0) # findfirst(n1.first, e)
+            nei2 = something(findfirst(isequal(e), n2.first), 0) # findfirst(n2.first, e)
 
             # get paths in rnode starting edge e. (This works because node.first
             # is sorted like rnode.edges[1] & rnode.edges[3])
@@ -256,7 +257,8 @@ function connect_nodes!(
                 ni3 = flat_index(IDs[e.n1][1] + rp.dirs[2], rp.tos[2])  # TODO: check if not 0 (for open bounds)
                 ni4 = flat_index(IDs[e.n1][1] + rp.dirs[3], rp.tos[3])  # TODO: check if not 0 (for open bounds)
                 if (ni3 == 0) || (ni4 == 0); continue; end
-                ei2 = findfirst(first, SEdge1(-1., -1, ni3, ni4))
+                # ei2 = findfirst(first, SEdge1(-1., -1, ni3, ni4))
+                ei2 = something(findfirst(isequal(SEdge1(-1., -1, ni3, ni4)), first), 0)
 
                 # save in nodes
                 push!(n1.paths[nei1], first[ei2])
@@ -278,7 +280,9 @@ function connect_nodes!(
                 ni3 = flat_index(IDs[e.n2][1] + rp.dirs[2], rp.tos[2])  # TODO: check if not 0 (for open bounds)
                 ni4 = flat_index(IDs[e.n2][1] + rp.dirs[3], rp.tos[3])  # TODO: check if not 0 (for open bounds)
                 if (ni3 == 0) || (ni4 == 0); continue; end
-                ei2 = findfirst(first, SEdge1(-1., -1., ni3, ni4))
+                # ei2 = findfirst(first, SEdge1(-1., -1., ni3, ni4))
+                ei2 = something(findfirst(isequal(SEdge1(-1., -1, ni3, ni4)), first), 0)
+
 
                 # save in nodes
                 push!(n1.paths[nei1], first[ei2])
@@ -306,11 +310,12 @@ function connect_nodes!(
         end
 
         # a - x - b
-        for i in 1:3        # picks a
+        l = length(x.first)
+        for i in 1:l-1        # picks a
             axe = x.first[i]
             ai = axe.n1 == xi ? axe.n2 : axe.n1
             bs = Int64[]
-            for j in i+1:4  # picks b
+            for j in i+1:l  # picks b
                 xbe = x.first[j]
                 bi = xbe.n1 == xi ? xbe.n2 : xbe.n1
                 push!(bs, bi)
@@ -471,8 +476,8 @@ end
 
 function rand_spin(N::Int64)
     phis = 2 * pi * rand(Float64, N)
-    cts = 2 * rand(Float64, N) - 1
-    sts = sqrt.(1. - cts .* cts) # sin(acos(cts)) # max(0., )
+    cts = 2 * rand(Float64, N) .- 1
+    sts = sqrt.(1. .- cts .* cts) # sin(acos(cts)) # max(0., )
 
     [Point3{Float64}(
         sts[i] .* cos.(phis[i]),

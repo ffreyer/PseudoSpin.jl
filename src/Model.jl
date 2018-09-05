@@ -83,8 +83,8 @@ function generate_scalar_products(
         new_spin::Point3{Float64}
     )
 
-    xys = Array{Float64}(4)
-    zs = Array{Float64}(4)
+    xys = Array{Float64}(undef, 4)
+    zs = Array{Float64}(undef, 4)
 
     for j in eachindex(sgraph.nodes[i].first)
         @inbounds xys[j], zs[j] = scalar_prod(

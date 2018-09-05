@@ -17,26 +17,26 @@ and edge is given in Node, as multiple edges of same length a grouped there.
 
 abstract type AbstractREdge end
 
-type SimpleREdge <: AbstractREdge
+mutable struct SimpleREdge <: AbstractREdge
     dir::Vec3i
     from::Integer # AbstractNode
     to::Integer   # AbstractNode
 end
 
-type PathREdge <: AbstractREdge
+mutable struct PathREdge <: AbstractREdge
     dirs::Vector{Vec3i} # should contain 3 Vec3i's
     from::Integer
     tos::Vector{Integer} # should contain 3 indices
 end
 
-type RNode #<: AbstractNode
+mutable struct RNode #<: AbstractNode
     atom::String
     bravais::Bravais
     edges::Vector{Vector{AbstractREdge}} #Abstract
     distances::Vector{AbstractFloat}
 end
 
-type RGraph
+mutable struct RGraph
     nodes::Vector{RNode}
     edges::Vector{AbstractREdge}
 end

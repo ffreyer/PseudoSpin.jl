@@ -98,17 +98,18 @@ function measure!(
         flip::Function
     )
 
-    const invN = 1. / sgraph.N_nodes
-    const Nhalf = div(sgraph.N_nodes, 2)
+    invN = 1. / sgraph.N_nodes
+    Nhalf = div(sgraph.N_nodes, 2)
 
     # Initialize binning analysis
     E_BA = BinnerA(200)
-    Es = Array{Float64}(N_sweeps)
+    Es = Array{Float64}(undef, N_sweeps)
 
     Mx_BA = BinnerA(200);   My_BA = BinnerA(200);   Mz_BA = BinnerA(200)
 
     M2xy_BA = BinnerA(200);             M2z_BA = BinnerA(200)
-    M2xys = Array{Float64}(N_sweeps);   M2zs = Array{Float64}(N_sweeps)
+    M2xys = Array{Float64}(undef, N_sweeps)
+    M2zs = Array{Float64}(undef, N_sweeps)
     Mquad_BA = BinnerA(200);            Moct_BA = BinnerA(200)
     Dimer_xy = BinnerA(200);            Dimer_xy_var = BinnerA(200)
     Dimer_z = BinnerA(200);             Dimer_z_var = BinnerA(200)
@@ -169,7 +170,7 @@ function measure!(
         # if additional_observables
         _spins = map(t -> flip(t..., Nhalf), enumerate(spins))
         # S = sum(_spins) * invN
-        S = reduce(+, Point3{Float64}(0.), _spins) * invN
+        S = reduce(+, _spins) * invN
         srMx += S[1]
         srMy += S[2]
         srMz += S[3]
@@ -179,7 +180,7 @@ function measure!(
         # constant to be boxed and lose its type.
         # This is a workaround for this
         temp2 = similar(_spins)
-        for i in eachindex(temp2); temp2[i] = _spins[i] - S; end
+        for j in eachindex(temp2); temp2[j] = _spins[j] - S; end
         vars = mapreduce(s -> s.^2, +, temp2) * invN
         # vars = mapreduce(s -> (s - S).^2, +, _spins) * invN
         srdMx += vars[1]
@@ -195,7 +196,7 @@ function measure!(
         srMzabs += S[3]
 
         temp2 = similar(_spins)
-        for i in eachindex(temp2); temp2[i] = abs.(_spins[i]) - S; end
+        for j in eachindex(temp2); temp2[j] = abs.(_spins[j]) - S; end
         vars = mapreduce(s -> (s).^2, +, temp2) * invN
         srdMxabs += vars[1]
         srdMyabs += vars[2]

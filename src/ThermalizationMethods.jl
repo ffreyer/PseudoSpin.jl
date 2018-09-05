@@ -183,12 +183,12 @@ function Freezer(;
         sin_percentage::Float64 = 0.2,
         kwargs...
     )
-    sin_values = 1. - sin_percentage * sin.(
-        linspace(0., 2.0pi, N_sin_points)
+    sin_values = 1. .- sin_percentage * sin.(
+        range(0., stop=2.0pi, length=N_sin_points)
     )
     exp_values = (exp.(
-        linspace(log(exp_strength + 1.), 0., N_exp_points)
-    ) - 1) / exp_strength
+        range(log(exp_strength + 1.), stop=0., length=N_exp_points)
+    ) .- 1) / exp_strength
     exp_deltas = exp_values[2:end] - exp_values[1:end-1]
 
     Freezer(

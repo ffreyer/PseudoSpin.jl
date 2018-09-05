@@ -73,6 +73,7 @@ for argline in eachline(argfile)
         push!(kwargs, :g => parse(Float64, args[2]))
     elseif args[1] == "zeta"
         push!(kwargs, :zeta => parse(Float64, args[2]))
+
     elseif args[1] in ["TGen_method", "TH_method"]
         push!(kwargs, :TGen_method => args[2] |> parse |> eval)
     elseif args[1] == "thermalizer_method"
@@ -88,6 +89,8 @@ for argline in eachline(argfile)
         println("TODO: custom initial spin vectors")
         exit(-1)
         # push!(spins, Point3{Float64}(map(x -> parse(Float64, x), args[2:end])))
+    elseif isempty(args[1])
+        continue
     else
         println("Did not recognise \"", argline, "\"")
     end
