@@ -15,8 +15,19 @@ function thermalize!(
         beta, state = initialize(thermalizer, T, sgraph, spins)
         while !done(thermalizer, state)
             E_tot = sweep(sgraph, spins, E_tot, beta, parameters)
+            E_tot1 = deepcopy(E_tot)
             beta, E_tot, state = next(thermalizer, state, E_tot)
             push!(E_comp, E_tot)
+
+            # init_edges!(sgraph, spins)
+            # E_check = totalEnergy(sgraph, spins, parameters)
+            # # if current_index(thermalizer.Tgen, state[1]) % 10 == 0
+            #     println(
+            #         "$E_tot1 \t --> \t $E_tot \t should be $E_check \t " *
+            #         "[$(current_index(thermalizer.Tgen, state[1]))]"
+            #     )
+            # end
+
             yield()
         end
     else
@@ -33,9 +44,14 @@ function thermalize!(
     init_edges!(sgraph, spins)
     E_check = totalEnergy(sgraph, spins, parameters)
     if !(E_tot ≈ E_check)
-        warn("E_tot inconsistent after thermalization. $E_tot =/= $(E_check)")
-        warn("On process #$(MPI.Comm_rank(MPI.COMM_WORLD))")
-        MPI.Finalize()
+        warn(
+            "E_tot inconsistent after thermalization. $E_tot =/= $(E_check)" *
+            " on process #$(myid())"
+        )
+        # warn("On process #$(MPI.Comm_rank(MPI.COMM_WORLD))")
+        # MPI.Finalize()
+        # xs = output(E_comp)
+        # println("  [" * mapreduce(string, (a, b) -> a * ", " * b, xs) * "]")
         exit()
     end
 
@@ -82,7 +98,10 @@ function simulate!(
     # Add a variable to control the compression level here?
     E_comp = Compressor(1000)
     sweep = sweep_picker(parameters)
+    println("Start thermlize")
     beta = thermalize!(sgraph, spins, T, parameters, thermalizer, sweep, E_comp)
+    println("Stop thermlize")
+    # TODO global sync?
 
     # Fool-proof? file creation
     if !isdir(path)
@@ -112,10 +131,12 @@ function simulate!(
     write_Comp!(file, E_comp, "E_th ")
 
     # Measurement
+    println("Start measure")
     measure!(
         sgraph, spins, beta, parameters, file, sweep, ME_sweeps,
         is_parallel(thermalizer), batch_size(thermalizer)
     )
+    println("Stop measure")
 
     close(file)
 
@@ -154,21 +175,26 @@ function simulate!(
     )
 
     if is_parallel(thermalizer)
-        try
-            MPI.Init()
-        catch e
-            println("MPI has to be loaded before starting a simulation!")
-            throw(e)
-        end
-        @assert MPI.Comm_size(MPI.COMM_WORLD) == length(Ts) "The number of processes has to match the number of Temperatures!"
-        i = MPI.Comm_rank(MPI.COMM_WORLD)+1
+        # try
+        #     MPI.Init()
+        # catch e
+        #     println("MPI has to be loaded before starting a simulation!")
+        #     throw(e)
+        # end
+        # @assert MPI.Comm_size(MPI.COMM_WORLD) == length(Ts) "The number of processes has to match the number of Temperatures!"
+        # i = MPI.Comm_rank(MPI.COMM_WORLD)+1
+        @assert(
+            nprocs() == length(Ts),
+            "The number of processes has to match the number of Temperatures!"
+        )
+        i = myid()
         simulate!(
             sgraph, spins, sys_size,
             path, filename * string(i),
             Ts[i], parameters,
             thermalizer, ME_sweeps
         )
-        MPI.Finalize()
+        # MPI.Finalize()
     else
         for (i, T) in enumerate(Ts)
             simulate!(
@@ -340,6 +366,8 @@ function simulate!(;
             folder = folder[2:end]
         end
     end
+
+    println("Hi from $(myid()) / $(nprocs())")
 
     simulate!(
         sim, spins,L,

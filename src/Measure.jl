@@ -122,7 +122,10 @@ function measure!(
     srdM2xy = 0.0;  srdM2z = 0.0
 
     E_tot = totalEnergy(sgraph, spins, parameters)
-    switch = 1
+
+    # flush is_ready
+    while isready(__is_ready__); take!(__is_ready__) end
+    switch = 0
 
     for i in 1:N_sweeps
         E_tot = sweep(sgraph, spins, E_tot, beta, parameters)
@@ -200,6 +203,7 @@ function measure!(
         # end
 
         if do_pt && (i % batch_size == 0)
+            println("$(myid()) - measure")
             E_tot = _parallel_tempering!(sgraph, spins, E_tot, beta, switch)
             switch = 1 - switch
         end

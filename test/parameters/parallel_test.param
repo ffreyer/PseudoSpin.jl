@@ -1,0 +1,21 @@
+neighbors	2
+do_paths	true
+path	output/
+folder
+filename	parallel_test
+L	4
+#Js	-1.0	-0.4	0.3	0.12	-0.1	0.0	0.0	1.0
+Js	-0.4	0.0	0.0	0.0	0.0	0.0	0.0	0.0
+Ts	0.01	0.1	0.7	0.8
+TH	1000
+freeze_temp	2.0
+ME	1000
+h	0.010000	0.0	0.5
+#g	0.52
+
+TGen_method	Freezer
+thermalizer_method	ParallelTempering
+# thermalizer_method	ProbabilityEqualizer
+batch_size	10
+adaptive_sample_size	1000
+skip	10000
