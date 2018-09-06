@@ -44,7 +44,7 @@ function thermalize!(
     init_edges!(sgraph, spins)
     E_check = totalEnergy(sgraph, spins, parameters)
     if !(E_tot ≈ E_check)
-        warn(
+        @warn(
             "E_tot inconsistent after thermalization. $E_tot =/= $(E_check)" *
             " on process #$(myid())"
         )
@@ -90,7 +90,7 @@ function simulate!(
 
     # Thermalization
     if T <= 0.0
-        warn("T = 0.0 is not fully implemented, Assuming T = 1e-10")
+        @warn("T = 0.0 is not fully implemented, Assuming T = 1e-10")
         T = 1e-10
     end
 

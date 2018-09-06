@@ -1,4 +1,24 @@
-# Just measure!
+# Process Synchronization (Barrier)
+# const __barrier__ = Channel{Int64}(256)
+# set_barrier!(x::Int64) = put!(__barrier__, x)
+# function Barrier()
+#     rank = myid()
+#     # Tell every process "I am ready"
+#     for i in 1:nprocs()
+#         remotecall(set_barrier!, i, rank)
+#     end
+#     # Wait for every process to be ready
+#     for i in 1:nprocs()
+#         take!(__barrier__)
+#     end
+#     # Flush these
+#     # if isready(__left_ready__); take!(__left_ready__) end
+#     # if isready(__right_ready__); take!(__right_ready__) end
+#     nothing
+# end
+
+
+
 @inline function flip1(i::Int64, s::Point3{Float64}, Nhalf::Int64)
     if i <= Nhalf
         return s
@@ -124,9 +144,9 @@ function measure!(
 
     E_tot = totalEnergy(sgraph, spins, parameters)
 
-    # flush is_ready
-    while isready(__is_ready__); take!(__is_ready__) end
-    switch = 0
+    # # Sync processes
+    # Barrier()
+    # switch = 0
 
     for i in 1:N_sweeps
         E_tot = sweep(sgraph, spins, E_tot, beta, parameters)
@@ -205,8 +225,8 @@ function measure!(
 
         if do_pt && (i % batch_size == 0)
             println("$(myid()) - measure")
-            E_tot = _parallel_tempering!(sgraph, spins, E_tot, beta, switch)
-            switch = 1 - switch
+            E_tot = _parallel_tempering!(sgraph, spins, E_tot, beta)
+            __switch__[] = 1 - __switch__[]
         end
 
         yield()

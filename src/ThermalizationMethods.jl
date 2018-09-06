@@ -302,19 +302,19 @@ function next(
         state::Tuple,
         E_tot::Float64
     )
-    Tgen_state, sgraph, spins, switch = state
+    Tgen_state, sgraph, spins = state
     beta, Tgen_state = next(th.Tgen, Tgen_state)
     i = current_index(th.Tgen, Tgen_state)
 
     if i % th.batch_size == 0
         E_tot = _parallel_tempering!(
-            sgraph, spins, E_tot, beta, switch
+            sgraph, spins, E_tot, beta
         )
-        switch = 1 - switch
+        __switch__[] = 1 - __switch__[]
     end
 
     return beta, E_tot, (
-        Tgen_state, sgraph, spins, switch
+        Tgen_state, sgraph, spins
     )
 end
 
@@ -389,10 +389,9 @@ function initialize(
     )
     cum_prob = 0.0
     N_prob = 0
-    switch = 0
     beta, Tgen_state = initialize(th.Tgen, T)
 
-    return beta, (Tgen_state, cum_prob, N_prob, sgraph, spins, switch)
+    return beta, (Tgen_state, cum_prob, N_prob, sgraph, spins)
 end
 
 function next(th::ProbabilityEqualizer, state::Tuple, E_tot::Float64)
@@ -402,19 +401,19 @@ function next(th::ProbabilityEqualizer, state::Tuple, E_tot::Float64)
     comm_size = nprocs()
     comm_rank = myid()
 
-    Tgen_state, cum_prob, N_prob, sgraph, spins, switch = state
+    Tgen_state, cum_prob, N_prob, sgraph, spins = state
     beta, Tgen_state = next(th.Tgen, Tgen_state)
     i = current_index(th.Tgen, Tgen_state)
 
     if i % th.batch_size == 0
         E_tot, p = _parallel_tempering_adaptive!(
-            sgraph, spins, E_tot, beta, switch
+            sgraph, spins, E_tot, beta
         )
         if p >= 0.0
             cum_prob += p
             N_prob += 1
         end
-        switch = 1 - switch
+        __switch__[] = 1 - __switch__[]
     end
 
     if i % th.adaptive_sample_size == 0
@@ -456,7 +455,7 @@ function next(th::ProbabilityEqualizer, state::Tuple, E_tot::Float64)
         N_prob = 0
     end
 
-    return beta, E_tot, (Tgen_state, cum_prob, N_prob, sgraph, spins, switch)
+    return beta, E_tot, (Tgen_state, cum_prob, N_prob, sgraph, spins)
 end
 
 current_index(th::ProbabilityEqualizer, state) = current_index(th.Tgen, state[1])
@@ -470,17 +469,27 @@ T_max(th::ProbabilityEqualizer) = T_max(th.Tgen)
 
 ################################################################################
 
-# Send Style
-# to sync up processes
-const __is_ready__ = Channel{Bool}(2)
-is_ready() = put!(__is_ready__, true)
+# MPI-ish style interprocess communication
+# Non-blocking send via remotecall(set..., comm_with, data)
+# Blocking recv via take!(__...__)
 
+# to sync up processes
+# left and right communicators should fix race conditions...
+const __left_ready__ = Channel{Bool}(1)
+const __right_ready__ = Channel{Bool}(1)
+left_is_ready() = put!(__left_ready__, true)
+right_is_ready() = put!(__right_ready__, true)
+
+# data transfer
 const __E_tot__ = Channel{Float64}(1)
 set_E_tot!(value) = put!(__E_tot__, value) # println("$(myid()):  $value")
 const __do_swap__ = Channel{Bool}(1)
 set_do_swap!(value) = put!(__do_swap__, value)
 const __spins__ = Channel{Vector{Point3{Float64}}}(1)
 set_spins!(value) = put!(__spins__, value)
+
+# global switch allows continuation of parallel tempering after thermalization
+const __switch__ = Ref{Int64}(0)
 
 
 """
@@ -497,12 +506,11 @@ function _parallel_tempering!(
         sgraph::SGraph,
         spins::Vector{Point3{Float64}},
         E_tot::Float64,
-        beta::Float64,
-        switch::Int64
+        beta::Float64
     )
-    # comm = MPI.COMM_WORLD
-    # rank = MPI.Comm_rank(comm)
-    # comm_size = MPI.Comm_size(comm)
+    # TODO remove
+    sleep(0.001rand())
+
     rank = myid()
     comm_size = nprocs()
 
@@ -511,15 +519,19 @@ function _parallel_tempering!(
     # beta1 = beta
     # beta2 = beta
     # old_spins = deepcopy(spins)
-
-    if (switch + rank) % 2 == 0
+    # println("switch is $switch")
+    if (__switch__[] + rank) % 2 == 0
         comm_with = rank + 1
         # println("$rank talking to $comm_with with switch $switch")
 
         if comm_with <= comm_size
-            remotecall(is_ready, comm_with)
+            # Tell right (i+1) process the left process (this, i) is ready
+            remotecall(left_is_ready, comm_with)
+            println(">$rank told $comm_with that its left is ready")
             # println("$rank waiting for $comm_with response")
-            take!(__is_ready__)
+            # Wait for right process to tell this process it is ready
+            take!(__right_ready__)
+            println(">$rank read that right is ready ($comm_with)")
             # println("$rank got $comm_with response")
 
             # MPI.Recv!(E_tot2, comm_with, 0, comm)
@@ -582,9 +594,11 @@ function _parallel_tempering!(
         # println("$rank talking to $comm_with with switch $switch")
 
         if comm_with > 0
-            remotecall(is_ready, comm_with)
+            remotecall(right_is_ready, comm_with)
+            println("<$rank told $comm_with that its right is ready")
             # println("$rank waiting for $comm_with response")
-            take!(__is_ready__)
+            take!(__left_ready__)
+            println("<$rank read that left is ready ($comm_with)")
             # println("$rank got $comm_with response")
             # MPI.Send(E_tot1, comm_with, 0, comm)
             # println("Sending E_tot")
@@ -626,12 +640,12 @@ function _parallel_tempering_adaptive!(
         sgraph::SGraph,
         spins::Vector{Point3{Float64}},
         E_tot::Float64,
-        beta::Float64,
-        switch::Int64
+        beta::Float64
     )
     # comm = MPI.COMM_WORLD
     # rank = MPI.Comm_rank(comm)
     # comm_size = MPI.Comm_size(comm)
+
     rank = myid()
     comm_size = nprocs()
 
@@ -642,7 +656,7 @@ function _parallel_tempering_adaptive!(
     old_spins = deepcopy(spins)
     p = -1.0
 
-    if (switch + rank) % 2 == 0
+    if (__switch__[] + rank) % 2 == 0
         comm_with = rank + 1
 
         if comm_with <= comm_size

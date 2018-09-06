@@ -75,9 +75,9 @@ for argline in eachline(argfile)
         push!(kwargs, :zeta => parse(Float64, args[2]))
 
     elseif args[1] in ["TGen_method", "TH_method"]
-        push!(kwargs, :TGen_method => args[2] |> parse |> eval)
+        push!(kwargs, :TGen_method => args[2] |> Meta.parse |> eval)
     elseif args[1] == "thermalizer_method"
-        push!(kwargs, :thermalizer_method => args[2] |> parse |> eval)
+        push!(kwargs, :thermalizer_method => args[2] |> Meta.parse |> eval)
     elseif args[1] == "batch_size"
         push!(kwargs, :batch_size => parse(Int64, args[2]))
     elseif args[1] == "adaptive_sample_size"

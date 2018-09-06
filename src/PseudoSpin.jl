@@ -20,7 +20,7 @@ catch e
         throw(e)
     end
 end
-using LinearAlgebra
+using LinearAlgebra, Distributed
 
 const Vec3 = Vec{3}
 const Point3 = Point{3}
