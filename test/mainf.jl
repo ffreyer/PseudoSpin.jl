@@ -2,10 +2,7 @@
 using PseudoSpin
 Point3 = PseudoSpin.Point3
 myargs = remotecall_fetch(() -> ARGS, 1)
-println("I got $myargs on $(myid())")
-
 kwargs = Dict{Symbol, Any}()
-
 argfile = open(myargs[1], "r")
 
 for argline in eachline(argfile)

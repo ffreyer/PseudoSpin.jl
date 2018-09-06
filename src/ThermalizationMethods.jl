@@ -508,124 +508,61 @@ function _parallel_tempering!(
         E_tot::Float64,
         beta::Float64
     )
-    # TODO remove
-    sleep(0.001rand())
-
     rank = myid()
     comm_size = nprocs()
 
-    # E_tot1 = E_tot
-    # E_tot2 = E_tot
-    # beta1 = beta
-    # beta2 = beta
-    # old_spins = deepcopy(spins)
-    # println("switch is $switch")
     if (__switch__[] + rank) % 2 == 0
+        # me -> comm_with
         comm_with = rank + 1
-        # println("$rank talking to $comm_with with switch $switch")
 
         if comm_with <= comm_size
-            # Tell right (i+1) process the left process (this, i) is ready
+            # Tell comm_with "I am ready"
             remotecall(left_is_ready, comm_with)
-            println(">$rank told $comm_with that its left is ready")
-            # println("$rank waiting for $comm_with response")
-            # Wait for right process to tell this process it is ready
+            # Wait for comm_with to be ready
             take!(__right_ready__)
-            println(">$rank read that right is ready ($comm_with)")
-            # println("$rank got $comm_with response")
 
-            # MPI.Recv!(E_tot2, comm_with, 0, comm)
-            # MPI.Recv!(beta2, comm_with, 1, comm)
-            # println("Awaiting E_tot")
+            # Receive data from comm_with
             remote_E_tot = take!(__E_tot__)
-            # println("Done. Awaiting beta")
             remote_beta = take!(__beta__)
-            # println("Done. Sending do_swap")
 
+            # Determine whether to swap and notify comm_with
             @fastmath dEdT = (remote_E_tot - E_tot) * (remote_beta - beta)
-            # if dEdT > 0.0
-            #     do_swap = 0
-            # elseif exp(dEdT) > rand()
-            #     do_swap = 0
-            # else
-            #     do_swap = 1
-            # end
             do_swap = (dEdT > 0.0) || (exp(dEdT) > rand())
-            # MPI.Send(do_swap, comm_with, 2, comm)
             remotecall(set_do_swap!, comm_with, do_swap)
-            # println("Done.")
-            # println("$rank start")
-            # remotecall_fetch(set_E_tot!, rank, E_tot)
-            # println("$rank done")
 
+            # Perform data swap
             if do_swap
-                # remotecall(print, 1,
-                #     "[$rank|$comm_with] \t $(round(E_tot, 3)) " *
-                #     "\t <---> \t $(round(remote_E_tot, 3))  \t " *
-                #     " $(round(beta, 3)) \t <---> \t $(round(remote_beta, 3))" *
-                #     "  \t  $dEdT\n"
-                # )
-                # MPI.Send(old_spins, comm_with, 3, comm)
-                # println("Sending spins. <------------------")
                 old_spins = deepcopy(spins)
                 remotecall(set_spins!, comm_with, old_spins)
-                # println("Done. Sending E_tot")
                 remotecall(set_E_tot!, comm_with, E_tot)
-                # println("[$rank] >>  $comm_with :  $E_tot")
-                # println("Done. Awaiting spins")
-                # TODO would this be better to do simultaniously with the other
-                # TODO process?
                 spins .= take!(__spins__)
-                # println("Done.")
-                # MPI.Recv!(spins, comm_with, 4, comm)
-                # MPI.Send(E_tot1, comm_with, 5, comm)
                 init_edges!(sgraph, spins)
                 return remote_E_tot
-            # else remotecall(print, 1,
-            #     "[$rank|$comm_with] \t $(round(E_tot, 3)) \t |---| \t " *
-            #     "$(round(remote_E_tot, 3))  \t  $(round(beta, 3)) \t |---| " *
-            #     " \t $(round(remote_beta, 3))  \t  $dEdT\n"
-            # )
             end
         end
         return E_tot
     else
+        # comm_with <- me
         comm_with = rank - 1
-        # println("$rank talking to $comm_with with switch $switch")
 
         if comm_with > 0
+            # Tell comm_with "I am ready"
             remotecall(right_is_ready, comm_with)
-            println("<$rank told $comm_with that its right is ready")
-            # println("$rank waiting for $comm_with response")
+            # Wait for comm_with to be ready
             take!(__left_ready__)
-            println("<$rank read that left is ready ($comm_with)")
-            # println("$rank got $comm_with response")
-            # MPI.Send(E_tot1, comm_with, 0, comm)
-            # println("Sending E_tot")
-            remotecall(set_E_tot!, comm_with, E_tot)
-            # println("Done. Sending beta")
-            # MPI.Send(beta1, comm_with, 1, comm)
-            remotecall(set_beta!, comm_with, beta)
-            # println("Done. Awaiting do_swap")
 
-            # do_swap = -1
-            # do_swap, status = MPI.Recv(Int64, comm_with, 2, comm)
+            # Send data to comm_with
+            remotecall(set_E_tot!, comm_with, E_tot)
+            remotecall(set_beta!, comm_with, beta)
+
+            # Wait for response (whether to swap)
             do_swap = take!(__do_swap__)
-            # println("Done.")
 
             if do_swap
-                # println("Sending spins. <------------------")
                 old_spins = deepcopy(spins)
                 remotecall(set_spins!, comm_with, old_spins)
-                # println("Done. Awaiting spins")
                 spins .= take!(__spins__)
-                # println("Done. Awaiting E_tot")
                 remote_E_tot = take!(__E_tot__)
-                # println(" $comm_with  >> [$rank]:  $remote_E_tot")
-                # println("Done.")
-                # MPI.Recv!(spins, comm_with, 3, comm)
-                # MPI.Send(old_spins, comm_with, 4, comm)
-                # MPI.Recv!(E_tot2, comm_with, 5, comm)
                 init_edges!(sgraph, spins)
                 return remote_E_tot
             end
@@ -636,59 +573,41 @@ function _parallel_tempering!(
 end
 
 
+# TODO
+# p needs to be transfered
+# this may interfere with something in ProbabilityEqualizer
 function _parallel_tempering_adaptive!(
         sgraph::SGraph,
         spins::Vector{Point3{Float64}},
         E_tot::Float64,
         beta::Float64
     )
-    # comm = MPI.COMM_WORLD
-    # rank = MPI.Comm_rank(comm)
-    # comm_size = MPI.Comm_size(comm)
-
     rank = myid()
     comm_size = nprocs()
-
-    E_tot1 = E_tot
-    # E_tot2 = [E_tot]
-    beta1 = beta
-    # beta2 = [beta]
-    old_spins = deepcopy(spins)
     p = -1.0
 
     if (__switch__[] + rank) % 2 == 0
         comm_with = rank + 1
 
         if comm_with <= comm_size
-            # MPI.Recv!(E_tot2, comm_with, 0, comm)
-            E_tot1 = take!(__E_tot__)
-            # MPI.Recv!(beta2, comm_with, 1, comm)
-            beta1 = take!(__beta__)
+            remotecall(left_is_ready, comm_with)
+            take!(__right_ready__)
 
-            @fastmath @inbounds dEdT = (E_tot1 - E_tot) * (beta1 - beta)
+            remote_E_tot = take!(__E_tot__)
+            remote_beta = take!(__beta__)
+
+            @fastmath dEdT = (remote_E_tot - E_tot) * (remote_beta - beta)
             p = min(1.0, exp(dEdT))
-            # if p == 1
-            #     do_swap = 0
-            # elseif p > rand()
-            #     do_swap = 0
-            # else
-            #     do_swap = 1
-            # end
             do_swap = (p == 1) || (p > rand())
-            # MPI.Send(do_swap, comm_with, 2, comm)
             remotecall(set_do_swap!, comm_with, do_swap)
 
             if do_swap
-                # print("[$rank|$comm_with] \t $(round(E_tot1[1], 3)) \t <---> \t $(round(E_tot2[1], 3))  \t  $(round(beta1[1], 3)) \t <---> \t $(round(beta2[1], 3))  \t  $dEdT\n")
-                # MPI.Send(old_spins, comm_with, 3, comm)
-                # MPI.Recv!(spins, comm_with, 4, comm)
-                # MPI.Send(E_tot1, comm_with, 5, comm)
+                old_spins = deepcopy(spins)
                 remotecall(set_spins!, comm_with, old_spins)
                 remotecall(set_E_tot!, comm_with, E_tot)
-                spins = take!(__spins__)
+                spins .= take!(__spins__)
                 init_edges!(sgraph, spins)
-                return E_tot1, p
-            # else print("[$rank|$comm_with] \t $(round(E_tot1[1], 3)) \t |---| \t $(round(E_tot2[1], 3))  \t  $(round(beta1[1], 3)) \t |---| \t $(round(beta2[1], 3))  \t  $dEdT\n")
+                return remote_E_tot, p
             end
         end
         return E_tot, p
@@ -696,24 +615,21 @@ function _parallel_tempering_adaptive!(
         comm_with = rank - 1
 
         if comm_with > 0
-            # MPI.Send(E_tot1, comm_with, 0, comm)
-            remotecall(set_E_tot!, comm_with, E_tot)
-            # MPI.Send(beta1, comm_with, 1, comm)
-            remotecall(set_beta!, comm_with, beta1)
+            remotecall(right_is_ready, comm_with)
+            take!(__left_ready__)
 
-            # do_swap = -1
-            # do_swap, status = MPI.Recv(Int64, comm_with, 2, comm)
+            remotecall(set_E_tot!, comm_with, E_tot)
+            remotecall(set_beta!, comm_with, beta)
+
             do_swap = take!(__do_swap__)
 
             if do_swap
-                # MPI.Recv!(spins, comm_with, 3, comm)
-                # MPI.Send(old_spins, comm_with, 4, comm)
-                # MPI.Recv!(E_tot2, comm_with, 5, comm)
+                old_spins = deepcopy(spins)
                 remotecall(set_spins!, comm_with, old_spins)
                 spins = take!(__spins__)
-                E_tot1 = take!(__E_tot__)
+                remote_E_tot = take!(__E_tot__)
                 init_edges!(sgraph, spins)
-                return E_tot1, p
+                return remote_E_tot, p
             end
         end
         return E_tot, p

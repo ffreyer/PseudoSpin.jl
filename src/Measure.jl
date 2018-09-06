@@ -224,7 +224,6 @@ function measure!(
         # end
 
         if do_pt && (i % batch_size == 0)
-            println("$(myid()) - measure")
             E_tot = _parallel_tempering!(sgraph, spins, E_tot, beta)
             __switch__[] = 1 - __switch__[]
         end

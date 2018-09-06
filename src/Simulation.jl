@@ -98,9 +98,7 @@ function simulate!(
     # Add a variable to control the compression level here?
     E_comp = Compressor(1000)
     sweep = sweep_picker(parameters)
-    println("Start thermlize")
     beta = thermalize!(sgraph, spins, T, parameters, thermalizer, sweep, E_comp)
-    println("Stop thermlize")
     # TODO global sync?
 
     # Fool-proof? file creation
@@ -131,12 +129,10 @@ function simulate!(
     write_Comp!(file, E_comp, "E_th ")
 
     # Measurement
-    println("Start measure")
     measure!(
         sgraph, spins, beta, parameters, file, sweep, ME_sweeps,
         is_parallel(thermalizer), batch_size(thermalizer)
     )
-    println("Stop measure")
 
     close(file)
 
@@ -368,8 +364,6 @@ function simulate!(;
             folder = folder[2:end]
         end
     end
-
-    println("Hi from $(myid()) / $(nprocs())")
 
     simulate!(
         sim, spins,L,
