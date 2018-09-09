@@ -157,6 +157,7 @@ current_index(::ConstantT, state::Tuple{Float64, Int64}) = state[2]
 done(th::ConstantT, state::Tuple{Float64, Int64}) = state[2] >= th.N
 last(::ConstantT, state::Tuple{Float64, Int64}) = state[1]
 length(th::ConstantT) = th.N
+set_beta!(::ConstantT, state::Tuple{Float64, Int64}, beta::Float64) = (beta, state[2])
 
 
 #######################
@@ -238,6 +239,7 @@ done(th::Freezer, state::Tuple) = state[1] >= th.N
 last(::Freezer, state::Tuple) = state[end]
 length(th::Freezer) = th.N
 T_max(th::Freezer) = th.T_max
+set_beta!(::Freezer, state::Tuple, beta::Float64) = (state[1:end-2]..., 1.0/beta, beta)
 
 
 ##############################################
@@ -329,12 +331,6 @@ T_max(th::ParallelTempering) = T_max(th.Tgen)
 #######################
 
 
-const __p__ = Channel{Float64}(1)
-set_p!(value) = put!(__p__, value)
-const __beta__ = Channel{Float64}(1)
-set_beta!(value) = put!(__beta__, value)
-
-
 struct ProbabilityEqualizer{
         ATG <: AbstractTemperatureGenerator
     } <: AbstractParallelTemperingAlgorithm
@@ -345,20 +341,6 @@ struct ProbabilityEqualizer{
     M::Int64
     adaptive_sample_size::Int64
 end
-
-# function ProbabilityEqualizer(
-#         Tgen::ATG,
-#         batch_size::Int64,
-#         adaptive_sample_size::Int64
-#     ) where {ATG <: AbstractTemperatureGenerator}
-#
-#     return ProbabilityEqualizer(
-#         Tgen,
-#         batch_size,
-#         div(length(Tgen), adaptive_sample_size),
-#         adaptive_sample_size
-#     )
-# end
 
 function (::Type{ProbabilityEqualizer{TGen}})(;
         skip::Int64 = -1,
@@ -394,10 +376,28 @@ function initialize(
     return beta, (Tgen_state, cum_prob, N_prob, sgraph, spins)
 end
 
+
+# This also acts as a barrier to all
+const __all_gather_p_beta__ = Channel{Tuple{Int64, Float64, Float64}}(256)
+set_p_beta!(value) = put!(__all_gather_p_beta__, value)
+function all_gather_p_beta(p, beta)
+    rank = myid()
+    N = nprocs()
+    for comm_with in 1:N
+        remotecall(set_p_beta!, comm_with, (rank, p, beta))
+    end
+    probs = Vector{Float64}(undef, N)
+    Ts = Vector{Float64}(undef, N)
+    for _ in 1:N
+        i, p, beta = take!(__all_gather_p_beta__)
+        probs[i] = p
+        Ts[i] = 1.0 / beta
+    end
+    probs, Ts
+end
+
+
 function next(th::ProbabilityEqualizer, state::Tuple, E_tot::Float64)
-    # comm = MPI.COMM_WORLD
-    # comm_size = MPI.Comm_size(comm)
-    # comm_rank = MPI.Comm_rank(comm)
     comm_size = nprocs()
     comm_rank = myid()
 
@@ -420,34 +420,37 @@ function next(th::ProbabilityEqualizer, state::Tuple, E_tot::Float64)
         k = div(i, th.adaptive_sample_size) - th.skip
 
         if k > 0
-            # MPI.Barrier(comm)
-            p = N_prob == 0 ? 0.0 : cum_prob / N_prob
-            # TODO
-            # probs = MPI.Allgather(p, comm)
-            # temperatures = MPI.Allgather(1.0 / beta, comm)
+            p = N_prob == 0.0 ? 0.0 : cum_prob / N_prob
+            probs, Ts = all_gather_p_beta(p, beta)
+            # comm_rank == 1 && println("Probs - $probs \t \t Ts - $Ts")
 
-            if (comm_rank != 0) && (comm_rank != comm_size-1)
+            if (comm_rank != 1) && (comm_rank != comm_size)
                 prob_sum = sum(probs)
-                norm_prob = probs / prob_sum
+                norm_prob = probs ./ prob_sum
                 mean_prob = mean(norm_prob)
-                down = (norm_prob[comm_rank] - mean_prob) *
-                    (temperatures[comm_rank+1] - temperatures[comm_rank])
-                up = (norm_prob[comm_rank+1] - mean_prob) *
-                    (temperatures[comm_rank+1] - temperatures[comm_rank+2])
+
+                dT21 = (Ts[comm_rank] - Ts[comm_rank-1])
+                dT23 = (Ts[comm_rank] - Ts[comm_rank+1])
+                down = (norm_prob[comm_rank-1] - mean_prob) * dT21
+                up = (norm_prob[comm_rank] - mean_prob) * dT23
                 # down = 0.01(log(norm_prob[rank]) - log(mean_prob)) *
                 #     (temperatures[rank+1] - temperatures[rank])
                 # up = 0.01(log(norm_prob[rank+1]) - log(mean_prob)) *
                 #     (temperatures[rank+1] - temperatures[rank+2])
-                new_T = max(
-                    temperatures[comm_rank+1] + (1.0 - k / th.M) * (down + up),
-                    temperatures[comm_rank] + 0.01
+
+                # Let's guarantee that we don't jumble the temperatures
+                # maximum change locked to ±0.4ΔT
+                new_T = min(
+                    Ts[comm_rank] - 0.4dT23, # dT23 < 0.0
+                    max(
+                        Ts[comm_rank-1] + 0.6dT21,
+                        Ts[comm_rank] + (1.0 - k/th.M) * (down + up)
+                    )
                 )
+                # println("$(Ts[comm_rank]) -> $new_T")
 
                 beta = 1.0 / new_T
-
-                # NOTE
-                # sleep(0.01 * comm_rank)
-                # print("[$comm_rank] T = $(round(temperatures[comm_rank+1], 3))   ->  $(round(new_T, 3)) \t\t down = $down \t up = $up \t\t proabilities = $(probs)\n")
+                Tgen_state = set_beta!(th.Tgen, Tgen_state, beta)
             end
         end
 
@@ -482,7 +485,9 @@ right_is_ready() = put!(__right_ready__, true)
 
 # data transfer
 const __E_tot__ = Channel{Float64}(1)
-set_E_tot!(value) = put!(__E_tot__, value) # println("$(myid()):  $value")
+set_E_tot!(value) = put!(__E_tot__, value)
+const __beta__ = Channel{Float64}(1)
+set_beta!(value) = put!(__beta__, value)
 const __do_swap__ = Channel{Bool}(1)
 set_do_swap!(value) = put!(__do_swap__, value)
 const __spins__ = Channel{Vector{Point3{Float64}}}(1)
@@ -540,7 +545,6 @@ function _parallel_tempering!(
                 return remote_E_tot
             end
         end
-        return E_tot
     else
         # comm_with <- me
         comm_with = rank - 1
@@ -567,15 +571,11 @@ function _parallel_tempering!(
                 return remote_E_tot
             end
         end
-        return E_tot
     end
-    nothing
+    return E_tot
 end
 
 
-# TODO
-# p needs to be transfered
-# this may interfere with something in ProbabilityEqualizer
 function _parallel_tempering_adaptive!(
         sgraph::SGraph,
         spins::Vector{Point3{Float64}},
@@ -610,7 +610,6 @@ function _parallel_tempering_adaptive!(
                 return remote_E_tot, p
             end
         end
-        return E_tot, p
     else
         comm_with = rank - 1
 
@@ -626,251 +625,12 @@ function _parallel_tempering_adaptive!(
             if do_swap
                 old_spins = deepcopy(spins)
                 remotecall(set_spins!, comm_with, old_spins)
-                spins = take!(__spins__)
+                spins .= take!(__spins__)
                 remote_E_tot = take!(__E_tot__)
                 init_edges!(sgraph, spins)
                 return remote_E_tot, p
             end
         end
-        return E_tot, p
     end
-    nothing
+    return E_tot, p
 end
-
-
-# NOTE for reference, to be deleted later
-#=
-function thermalize!(
-        sgraph::SGraph,
-        spins::Vector{Point3{Float64}},
-        T::Float64,
-        Js::Vector{Tuple{Float64, Float64}},
-        TH_method::AbstractTGen,
-        h::Point3{Float64},
-        g::Float64,
-        do_pt::Bool,
-        do_adaptive::Bool,
-        batch_size::Int64,
-        adaptive_sample_size::Int64 = 100batch_size
-    )
-    print("correct\n")
-    init_edges!(sgraph, spins)
-
-    if do_adaptive
-        k = 0       # count against batch_size
-        M = div(length(TH_method), adaptive_sample_size)
-        switch = 0  # switch between forward and backward propagation
-        E_tot = totalEnergy(sgraph, spins, Js, h, g)
-        beta = 1.0 / T
-
-        MPI.Barrier(MPI.COMM_WORLD)
-        rank = MPI.Comm_rank(MPI.COMM_WORLD)
-        comm_size = MPI.Comm_size(MPI.COMM_WORLD)
-
-        initial_temperatures = MPI.Allgather(T, MPI.COMM_WORLD)
-        betas = 1. ./ initial_temperatures
-        T_min, T_max = extrema(initial_temperatures)
-        # dT = (T_max - T_min)
-        # dT = 0.1minimum(temperatures[2:end] - temperatures[1:end-1])
-        cum_prob = 0.0
-        N_prob = 0
-        cum_E = 0.0
-
-        for i in 1:length(TH_method)
-            E_tot = sweep(sgraph, spins, E_tot, Js, beta, h, g)
-            cum_E += E_tot
-
-            if i % batch_size == 0
-                E_tot, p = parallel_tempering_adaptive!(
-                    sgraph, spins, E_tot, beta, switch
-                )
-                if p >= 0.0
-                    # print("[$rank] p = $p\n")
-                    cum_prob += p
-                    N_prob += 1
-                end
-                switch = 1 - switch
-            end
-
-            if i % adaptive_sample_size == 0
-                if div(i, adaptive_sample_size) == 1
-                    cum_prob = 0.0 #prob_sum
-                    N_prob = 0
-                    cum_E = 0.
-                    print("[$rank] Skip first\n")
-                    continue
-                end
-                # print("\n")
-                MPI.Barrier(MPI.COMM_WORLD)
-                p = N_prob == 0 ? 0.0 : cum_prob / N_prob
-                # probabilities = MPI.Allgather(p, MPI.COMM_WORLD)
-                probs = MPI.Allgather(p, MPI.COMM_WORLD)
-                # rank == 0 && print("proabilities = $probabilities\n")
-
-                # energies = MPI.Allgather(cum_E, MPI.COMM_WORLD)
-                # energies = MPI.Allgather(cum_E / adaptive_sample_size, MPI.COMM_WORLD)
-                temperatures = MPI.Allgather(1.0/beta, MPI.COMM_WORLD)
-                if (rank != 0) && (rank != comm_size-1)
-                    # _probs = probs[1:end-1] + sum(probs[1:end-1])
-                    # prob_sum = sum(probs)
-                    # T_steps = (T_max - T_min) * cumsum(probs) / prob_sum
-                    # Tsteps[1] describes how far Ts[2] should be from Ts[1]
-                    # therefore skip rank == 0
-                    # print("[$rank] calculated Tsteps = $T_steps\n")
-                    # new_T = 0.5(1.0 / beta + T_min + T_steps[rank])
-
-                    # new_T = T_min + dT * (probabilities[rank] - probabilities[rank+1]) / prob_sum
-
-                    # es = energies / sum(energies)
-                    # # distance has to scale ~ 1/dE?
-                    # T_steps = (T_max - T_min) ./ (cumsum(es[2:end] - es[1:end-1]) + 0.000001)
-                    # new_T = T_min + T_steps[rank]
-
-                    # flow = proabilities[rank] - probabilities[rank+1]
-                    # Fs = probs[1:end-2] ./ (probs[1:end-2] .+ probs[2:end-1])
-                    # push!(Fs, 0.5)
-                    # Fs2 = (1-w)Fs + w(1 - k/M)
-                    # T_step = (T_max - T_min) .* sum(Fs2[1:rank]) / sum(Fs2)
-                    # new_T = T_min + T_step
-
-                    # new_T = 1.0 / beta - (log(probs[rank]) - log(probs[rank+1])) * dT
-                    # new_T = 1.0 / beta + (probs[rank] - probs[rank+1]) * dT
-
-                    # equalize p from linear energy fits?
-                    # p = mean(exp.(
-                    #     (energies[2:end] - energies[1:end-1]) ./
-                    #     (1.0 ./ temperatures[2:end] - 1.0 ./ temperatures[1:end-1])
-                    # ))
-                    # ms = (energies[2:end] - energies[1:end-1]) ./
-                    # (temperatures[2:end] - temperatures[1:end-1])
-                    # bs = energies[2:end] - ms .* temperatures[2:end]
-                    # forward_Ts = deepcopy(temperatures)
-                    # for j in 2:comm_size-1
-                    #     forward_Ts[j] = forward_T2(
-                    #         p, ms[j-1], forward_Ts[j-1], bs[j-1], ms[j], bs[j]
-                    #     )[1]
-                    # end
-                    # # backward_Ts = deepcopy(temperatures)
-                    # # for j in comm_size-1:-1:2
-                    # #     backward_Ts[j] = backward_T2(
-                    # #         p, ms[j], backward_Ts[j], bs[j], ms[j-1], bs[j-1]
-                    # #     )[1]
-                    # # end
-                    # new_T = 0.5(forward_Ts[rank+1] + temperatures[rank+1])
-                    # # new_T = forward_Ts[rank+1]
-
-                    # # flatten energies?
-                    # E_min, E_max = extrema(energies)
-                    # # T = mE + b
-                    # ms = (temperatures[2:end] - temperatures[1:end-1]) ./
-                    # (energies[2:end] - energies[1:end-1])
-                    # bs = temperatures[2:end] - ms .* energies[2:end]
-                    #
-                    # wanted_E = linspace(E_min, E_max, comm_size)[rank+1]
-                    # if cum_E <= wanted_E
-                    #     new_T = ms[rank+1] * wanted_E + bs[rank+1]
-                    # else
-                    #     new_T = ms[rank] * wanted_E + bs[rank]
-                    # end
-
-                    prob_sum = sum(probs)
-                    norm_prob = probs / prob_sum
-                    mean_prob = mean(norm_prob)
-                    down = (norm_prob[rank] - mean_prob) *
-                        (temperatures[rank+1] - temperatures[rank])
-                    up = (norm_prob[rank+1] - mean_prob) *
-                        (temperatures[rank+1] - temperatures[rank+2])
-                    # down = 0.01(log(norm_prob[rank]) - log(mean_prob)) *
-                    #     (temperatures[rank+1] - temperatures[rank])
-                    # up = 0.01(log(norm_prob[rank+1]) - log(mean_prob)) *
-                    #     (temperatures[rank+1] - temperatures[rank+2])
-                    new_T = max(
-                        temperatures[rank+1] + (1.0 - k/M) * (down + up),
-                        temperatures[rank] + 0.01
-                    )
-                    # new_T = temperatures[rank+1] + (down + up) * k
-                    # unfix: norm_prob[rank], temperatures[rank+1] (from rank+1, rank+2)
-
-
-                    # T_step = (T_max - T_min) * cumsum(probs) / sum(probs)
-                    # new_T = T_min + T_step[rank]
-                    beta = 1.0 / new_T
-                    sleep(0.01*rank)
-                    print("[$rank] T = $(round(temperatures[rank+1], 3))   ->  $(round(new_T, 3)) \t\t down = $down \t up = $up \t\t proabilities = $(probs)\n")
-                    # print("[$rank] T = $T   ->  $(round(new_T, 3)) \t\t proabilities = $(probs)\n")
-                    # print("[$rank] T = $T   ->  $(round(new_T, 3)) \t\t Energies = $es\n")
-                    # print("[$rank] T = $T   ->  $(round(new_T, 3)) \t\t Energies = $Fs\n")
-                    # print("[$rank] T = $T   ->  $(round(new_T, 3)) \t\t Energies = $energies \t\t probabilities = $probs\n")
-                    # print("[$rank] T = $T   ->  $(round(new_T, 3)) \t\t forward: $forward_Ts \t\t backward $backward_Ts\n")
-                    # print("[$rank] T = $T   ->  $(round(new_T, 3))  \t\t forward: $forward_Ts \t\t last $temperatures\n")
-                    # print("[$rank] T = $T   ->  $(round(new_T, 3))  \t\t energies = $energies \t\t probs = $probs\n")
-                    # print("[$rank] T = $T  ->  $new_T\n")
-                end
-                k += 1
-                cum_prob = 0.0 #prob_sum
-                N_prob = 0
-                # dT *= 0.75
-                cum_E = 0.0
-            end
-            yield()
-        end
-
-        E_check = totalEnergy(sgraph, spins, Js, h, g)
-        if !(E_tot ≈ E_check)
-            warn(
-                "E_tot inconsistent on $(MPI.Comm_rank(MPI.COMM_WORLD)) after $i\
-                $E_tot =/= $(E_check)\
-                in full thermalize."
-            )
-            MPI.Finalize()
-            exit()
-        end
-
-    elseif do_pt
-        i = 0       # count against batch_size
-        switch = 0  # switch between forward and backward propagation
-        E_tot = totalEnergy(sgraph, spins, Js, h, g)
-
-        # blocked_time = 0.0
-        # total_time = -time()
-
-        for beta in cool_to(TH_method, T)
-            E_tot = sweep(sgraph, spins, E_tot, Js, beta, h, g)
-            i += 1
-
-            # parallel tempering step
-            if i % batch_size == 0
-                E_tot = parallel_tempering!(sgraph, spins, E_tot, beta, switch)
-                # E_tot, bt = parallel_tempering_time!(spins, E_tot, beta, switch)
-                # blocked_time += bt
-                # init_edges!(sgraph, spins)
-                switch = 1 - switch
-            end
-            yield()
-        end
-
-        E_check = totalEnergy(sgraph, spins, Js, h, g)
-        if !(E_tot ≈ E_check)
-            warn(
-                "E_tot inconsistent on $(MPI.Comm_rank(MPI.COMM_WORLD)) after $i\
-                $E_tot =/= $(E_check)\
-                in full thermalize."
-            )
-            # MPI.Barrier()
-            MPI.Finalize()
-            exit()
-        end
-        # total_time += time()
-        # print("[$(MPI.Comm_rank(MPI.COMM_WORLD))] was blocked for $blocked_time / $total_time = $(round(blocked_time/total_time*100, 1))%. \n")
-    else
-        tic()
-        for beta in cool_to(TH_method, T)
-            sweep(sgraph, spins, Js, beta, h, g)
-            yield()
-        end
-        # print("[T = $T] $(toq())\n")
-    end
-
-    1. / T
-end
-=#

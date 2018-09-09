@@ -99,6 +99,7 @@ function simulate!(
     E_comp = Compressor(1000)
     sweep = sweep_picker(parameters)
     beta = thermalize!(sgraph, spins, T, parameters, thermalizer, sweep, E_comp)
+    # println(1.0 / beta)
     # TODO global sync?
 
     # Fool-proof? file creation
