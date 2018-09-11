@@ -1,5 +1,5 @@
 # TODO TODO TODO TODO TODO TODO TODO TODO
-# This stuff may fail for small lattices (L = 1 & 2)
+# This stuff may fail for very small lattices (L = 1 & 2)
 # TODO TODO TODO TODO TODO TODO TODO TODO
 
 abstract type SEdge end
@@ -36,8 +36,6 @@ struct SNode
     third::Vector{Int64}
     # includes all additonal edges in paths containing neighbours[1][j]
     paths::Vector{Vector{SEdge1}}
-    # gpaths contains NN edges a-b for x-a-b terms and NNN edges a-b for a-x-b
-    # gpaths::Tuple{Vector{SEdge1}, Vector{SEdge2}}
     gpaths::Vector{GEdge}
 end
 
@@ -141,41 +139,6 @@ function connect_nodes!(
     # E: number of edges per node
     # O(N * M * E)
 
-    # NN
-    # for i in 1:Int64(length(nodes)) # IndexT
-    #     rnode = rgraph.nodes[IDs[i][2]]
-    #     lvl = 1
-    #     for re in rnode.edges[lvl]
-    #         l = flat_index(IDs[i][1] + re.dir, re.to)
-    #
-    #         if l != 0
-    #             if lvl == 1     # <=> NN
-    #                 e = SEdge1(-1., -1., i, l)
-    #                 k = findfirst(first, e)
-    #                 if k != 0
-    #                     push!(nodes[i].first, first[k])
-    #                 else
-    #                     push!(nodes[i].first, e)
-    #                     push!(first, e)
-    #                 end
-    #             # elseif lvl == 2     # <=> NNN
-    #             #     e = SEdge2(i, l)
-    #             #     k = findfirst(second, e)
-    #             #     if k != 0
-    #             #         push!(nodes[i].second, l)
-    #             #     else
-    #             #         push!(nodes[i].second, l)
-    #             #         push!(second, e)
-    #             #     end
-    #             else
-    #                 throw(ErrorException(
-    #                     "More than second neighbours not implemented!"
-    #                 ))
-    #             end
-    #         end
-    #     end
-    # end
-
     # NNN
     for lvl in eachindex(rgraph.nodes[1].distances)
         for i in 1:Int64(length(nodes)) # IndexT
@@ -257,7 +220,6 @@ function connect_nodes!(
                 ni3 = flat_index(IDs[e.n1][1] + rp.dirs[2], rp.tos[2])  # TODO: check if not 0 (for open bounds)
                 ni4 = flat_index(IDs[e.n1][1] + rp.dirs[3], rp.tos[3])  # TODO: check if not 0 (for open bounds)
                 if (ni3 == 0) || (ni4 == 0); continue; end
-                # ei2 = findfirst(first, SEdge1(-1., -1, ni3, ni4))
                 ei2 = something(findfirst(isequal(SEdge1(-1., -1, ni3, ni4)), first), 0)
 
                 # save in nodes
@@ -280,7 +242,6 @@ function connect_nodes!(
                 ni3 = flat_index(IDs[e.n2][1] + rp.dirs[2], rp.tos[2])  # TODO: check if not 0 (for open bounds)
                 ni4 = flat_index(IDs[e.n2][1] + rp.dirs[3], rp.tos[3])  # TODO: check if not 0 (for open bounds)
                 if (ni3 == 0) || (ni4 == 0); continue; end
-                # ei2 = findfirst(first, SEdge1(-1., -1., ni3, ni4))
                 ei2 = something(findfirst(isequal(SEdge1(-1., -1, ni3, ni4)), first), 0)
 
 
@@ -485,31 +446,3 @@ function rand_spin(N::Int64)
         cts[i]
     ) for i in 1:N]
 end
-
-
-# Not as fast as rand_spin(N) iirc
-# function rand_spin!(A::Vector{Point3{Float64}})
-#     N = length(A)
-#     phis = 2 * pi * rand(Float64, N)
-#     cts = 2 * rand(Float64, N) - 1
-#     sts = sin(acos(cts))
-#
-#     @inbounds for i in 1:N
-#         A[i] = Point3{Float64}(
-#             sts[i] * cos(phis[i]),
-#             sts[i] * sin(phis[i]),
-#             cts[i]
-#         )
-#     end
-#
-#     nothing
-# end
-
-
-# unused?
-# function get_positions(rgraph::RGraph, sgraph::SGraph)
-#     map(1:sgraph.N_nodes) do i # IndexT
-#         uvw, LID = lattice_indices(i)
-#         uvw * rgraph.nodes[LID].bravais
-#     end
-# end

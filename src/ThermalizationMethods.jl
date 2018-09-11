@@ -3,29 +3,18 @@
 AbstractTemperatureGenerator        AbstractParallelTemperingAlgorithm
 - ConstantT                         - ParallelTempering
 - Freezer                           - ProbabilityEqualizer
+                                    TODO
                                     - TimeEqualizer
                                     - EnergyRebalancer
 .
-
-each one should work as
-
-    init_edges!(...)
-    E_tot = totalEnergy(...)
-    state = initialize(thermalizer, ...)            # or start()
-    while !done(thermalizer, state)
-        state = next(thermalizer, state, E_tot)
-        E_tot = sweep(...)
-    end
-    beta = last(thermalizer, state)
 =#
-
 
 # TODO
 #=
 Every adaptive algorithm has to thermalize thoroughly first
 - Preferably PT + simulated annealing
 - lot's of sweeps (same order as no PT!?)
-- explicitly checking/recording energy equillibration might be useful
+- explicitly checking/recording energy equillibration might be useful (added)
 
 Energy balancing
 1) long thermalization, PT + SA
@@ -52,17 +41,6 @@ Ts:
 
 =#
 
-#=
-# TODO
-Where should the thermalization method be created?
-
-1) in main file, then given to simulate!
-- can be built in mainf
-- would clean up stuff
-
-How should Tgen be created for pt methods?
-=#
-
 """
     (<: AbstractThermalizationMethod)(; kwargs...)
 
@@ -84,6 +62,9 @@ Creates a thermalization method.
 abstract type AbstractThermalizationMethod end
 abstract type AbstractTemperatureGenerator <: AbstractThermalizationMethod end
 abstract type AbstractParallelTemperingAlgorithm <: AbstractThermalizationMethod end
+
+
+# Interface methods
 
 """
     is_parallel(<:AbstractThermalizationMethod)
@@ -334,7 +315,6 @@ T_max(th::ParallelTempering) = T_max(th.Tgen)
 struct ProbabilityEqualizer{
         ATG <: AbstractTemperatureGenerator
     } <: AbstractParallelTemperingAlgorithm
-    # PT::ParallelTempering{<:AbstractTemperatureGenerator}
     Tgen::ATG
     batch_size::Int64
     skip::Int64

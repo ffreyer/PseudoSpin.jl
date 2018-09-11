@@ -1,25 +1,6 @@
 module PseudoSpin
 
-__precompile__(true)
-
-
-# SLURM WORKAROUND
-# Don't import this so this package can run without loading MPI libraries
-# If MPI is used without importing it this will crash, but that's fine
-# import MPI
-
-# Small FixedSizeArrays, e.g. 3-component vectors, outperform Julia Arrays.
-try
-    using FixedSizeArrays
-catch e
-    # println("FixedSizeArrays not available. Trying StaticArrays.")
-    try
-        using StaticArrays.FixedSizeArrays
-    catch e
-        println("StaticArrays not available!")
-        throw(e)
-    end
-end
+using StaticArrays.FixedSizeArrays
 using LinearAlgebra, Distributed
 
 const Vec3 = Vec{3}
