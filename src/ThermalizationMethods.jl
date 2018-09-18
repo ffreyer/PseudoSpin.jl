@@ -366,8 +366,8 @@ function all_gather_p_beta(p, beta)
     for comm_with in 1:N
         remotecall(set_p_beta!, comm_with, (rank, p, beta))
     end
-    probs = Vector{Float64}(undef, N)
-    Ts = Vector{Float64}(undef, N)
+    probs = Vector{Float64}(N)
+    Ts = Vector{Float64}(N)
     for _ in 1:N
         i, p, beta = take!(__all_gather_p_beta__)
         probs[i] = p
