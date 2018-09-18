@@ -168,7 +168,7 @@ function sweep_picker(param::Parameters)
     if param_group in param_groups
         return eval(:($(Symbol(:sweep_, param_group...))))
     else
-        @warn(
+        warn(
             "No method generated for (" *
             reduce((a, b) -> a * ", " * b, map(string, param_group)) *
             "). Using the most general method instead. Consider implementing" *

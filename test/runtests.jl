@@ -1,5 +1,10 @@
 using PseudoSpin
-using Test
+if VERSION >= v"0.7.0"
+    using Test
+    const gc = GC.gc
+else
+    using Base.Test
+end
 
 isfile("output/full_test.part") && rm("output/full_test.part")
 

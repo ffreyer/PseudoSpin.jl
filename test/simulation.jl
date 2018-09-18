@@ -74,7 +74,7 @@ end
     @test sweep == PseudoSpin.sweep_J1
 
     E_tot = sweep(sim, spins, E_tot, 1.0/10., param)
-    print("--J1           	"); GC.gc()
+    print("--J1           	"); gc()
     @time for i in 1:N_sweeps
         E_tot = sweep(sim, spins, E_tot, 1.0/10., param)
     end
@@ -95,7 +95,7 @@ end
     @test sweep == PseudoSpin.sweep_J2
 
     E_tot = sweep(sim, spins, E_tot, 1.0/10., param)
-    print("--J2           	"); GC.gc()
+    print("--J2           	"); gc()
     @time for i in 1:N_sweeps
         E_tot = sweep(sim, spins, E_tot, 1.0/10., param)
     end
@@ -116,7 +116,7 @@ end
     @test sweep == PseudoSpin.sweep_K
 
     E_tot = sweep(sim, spins, E_tot, 1.0/10., param)
-    print("--K            	"); GC.gc()
+    print("--K            	"); gc()
     @time for i in 1:N_sweeps
         E_tot = sweep(sim, spins, E_tot, 1.0/10., param)
     end
@@ -138,7 +138,7 @@ end
     @test sweep == PseudoSpin.sweep_h
 
     E_tot = sweep(sim, spins, E_tot, 1.0/10., param)
-    print("--h            	"); GC.gc()
+    print("--h            	"); gc()
     @time for i in 1:N_sweeps
         E_tot = sweep(sim, spins, E_tot, 1.0/10., param)
     end
@@ -160,7 +160,7 @@ end
     @test sweep == PseudoSpin.sweep_J1J2Kh
 
     E_tot = sweep(sim, spins, E_tot, 1.0/10., param)
-    print("--J1,J2,K,h    	"); GC.gc()
+    print("--J1,J2,K,h    	"); gc()
     @time for i in 1:N_sweeps
         E_tot = sweep(sim, spins, E_tot, 1.0/10., param)
     end
@@ -181,7 +181,7 @@ end
     @test sweep == PseudoSpin.sweep_J1J2Kgh
 
     E_tot = sweep(sim, spins, E_tot, 1.0/10., param)
-    print("--J1,J2,K,h,g  	"); GC.gc()
+    print("--J1,J2,K,h,g  	"); gc()
     @time for i in 1:N_sweeps
         E_tot = sweep(sim, spins, E_tot, 1.0/10., param)
     end
@@ -203,7 +203,7 @@ end
     @test sweep == PseudoSpin.sweep_J1g
 
     E_tot = sweep(sim, spins, E_tot, 1.0/10., param)
-    print("--J1,g         	"); GC.gc()
+    print("--J1,g         	"); gc()
     @time for i in 1:N_sweeps
         E_tot = sweep(sim, spins, E_tot, 1.0/10., param)
     end
@@ -218,7 +218,7 @@ end
     @test sweep == PseudoSpin.sweep_zeta
 
     E_tot = sweep(sim, spins, E_tot, 1.0/10., param)
-    print("--zeta         	"); GC.gc()
+    print("--zeta         	"); gc()
     @time for i in 1:N_sweeps
         E_tot = sweep(sim, spins, E_tot, 1.0/10., param)
     end
@@ -232,7 +232,7 @@ end
     @test sweep == PseudoSpin.sweep_J3
 
     E_tot = sweep(sim, spins, E_tot, 1.0/10., param)
-    print("--J3           	"); GC.gc()
+    print("--J3           	"); gc()
     @time for i in 1:N_sweeps
         E_tot = sweep(sim, spins, E_tot, 1.0/10., param)
     end

@@ -1,7 +1,6 @@
 module PseudoSpin
 
 using StaticArrays.FixedSizeArrays
-using LinearAlgebra, Distributed
 
 const Vec3 = Vec{3}
 const Point3 = Point{3}
@@ -13,11 +12,8 @@ const Vec3f0 = Vec{3, Float32}
 import Base: *, ==, in, findfirst, push!#, Base.show
 # import Base.start, Base.next, Base.length, Base.done, Base.eltype
 import Base: length, next, done, last
-if VERSION >= v"0.7.0"
-    import Statistics: mean, var
-else
-    import Base: mean, var
-end
+import Base: mean, var, range
+
 
 # Bravais lattice vectors, positions
 include("Crystal.jl")
