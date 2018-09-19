@@ -362,13 +362,12 @@ const __all_gather_p_beta__ = Channel{Tuple{Int64, Float64, Float64}}(256)
 set_p_beta!(value) = put!(__all_gather_p_beta__, value)
 function all_gather_p_beta(p, beta)
     rank = myid()
-    N = nprocs()
-    for comm_with in 1:N
+    for comm_with in start_id[]:stop_id[]
         remotecall(set_p_beta!, comm_with, (rank, p, beta))
     end
-    probs = Vector{Float64}(N)
-    Ts = Vector{Float64}(N)
-    for _ in 1:N
+    probs = Vector{Float64}(stop_id[])
+    Ts = Vector{Float64}(stop_id[])
+    for _ in start_id[]:stop_id[]
         i, p, beta = take!(__all_gather_p_beta__)
         probs[i] = p
         Ts[i] = 1.0 / beta
@@ -378,7 +377,6 @@ end
 
 
 function next(th::ProbabilityEqualizer, state::Tuple, E_tot::Float64)
-    comm_size = nprocs()
     comm_rank = myid()
 
     Tgen_state, cum_prob, N_prob, sgraph, spins = state
@@ -404,15 +402,15 @@ function next(th::ProbabilityEqualizer, state::Tuple, E_tot::Float64)
             probs, Ts = all_gather_p_beta(p, beta)
             # comm_rank == 1 && println("Probs - $probs \t \t Ts - $Ts")
 
-            if (comm_rank != 1) && (comm_rank != comm_size)
+            if (comm_rank != start_id[]) && (comm_rank != stop_id[])
                 prob_sum = sum(probs)
                 norm_prob = probs ./ prob_sum
                 mean_prob = mean(norm_prob)
 
-                dT21 = (Ts[comm_rank] - Ts[comm_rank-1])
-                dT23 = (Ts[comm_rank] - Ts[comm_rank+1])
-                down = (norm_prob[comm_rank-1] - mean_prob) * dT21
-                up = (norm_prob[comm_rank] - mean_prob) * dT23
+                dT21 = (Ts[corr_id[]] - Ts[corr_id[]-1])
+                dT23 = (Ts[corr_id[]] - Ts[corr_id[]+1])
+                down = (norm_prob[corr_id[]-1] - mean_prob) * dT21
+                up = (norm_prob[corr_id[]] - mean_prob) * dT23
                 # down = 0.01(log(norm_prob[rank]) - log(mean_prob)) *
                 #     (temperatures[rank+1] - temperatures[rank])
                 # up = 0.01(log(norm_prob[rank+1]) - log(mean_prob)) *
@@ -421,10 +419,10 @@ function next(th::ProbabilityEqualizer, state::Tuple, E_tot::Float64)
                 # Let's guarantee that we don't jumble the temperatures
                 # maximum change locked to ±0.4ΔT
                 new_T = min(
-                    Ts[comm_rank] - 0.4dT23, # dT23 < 0.0
+                    Ts[corr_id[]] - 0.4dT23, # dT23 < 0.0
                     max(
-                        Ts[comm_rank-1] + 0.6dT21,
-                        Ts[comm_rank] + (1.0 - k/th.M) * (down + up)
+                        Ts[corr_id[]-1] + 0.6dT21,
+                        Ts[corr_id[]] + (1.0 - k/th.M) * (down + up)
                     )
                 )
                 # println("$(Ts[comm_rank]) -> $new_T")
@@ -494,13 +492,12 @@ function _parallel_tempering!(
         beta::Float64
     )
     rank = myid()
-    comm_size = nprocs()
 
     if (__switch__[] + rank) % 2 == 0
         # me -> comm_with
         comm_with = rank + 1
 
-        if comm_with <= comm_size
+        if comm_with <= stop_id[]
             # Tell comm_with "I am ready"
             remotecall(left_is_ready, comm_with)
             # Wait for comm_with to be ready
@@ -529,7 +526,7 @@ function _parallel_tempering!(
         # comm_with <- me
         comm_with = rank - 1
 
-        if comm_with > 0
+        if comm_with >= start_id[]
             # Tell comm_with "I am ready"
             remotecall(right_is_ready, comm_with)
             # Wait for comm_with to be ready
@@ -563,13 +560,12 @@ function _parallel_tempering_adaptive!(
         beta::Float64
     )
     rank = myid()
-    comm_size = nprocs()
     p = -1.0
 
     if (__switch__[] + rank) % 2 == 0
         comm_with = rank + 1
 
-        if comm_with <= comm_size
+        if comm_with <= stop_id[]
             remotecall(left_is_ready, comm_with)
             take!(__right_ready__)
 
@@ -593,7 +589,7 @@ function _parallel_tempering_adaptive!(
     else
         comm_with = rank - 1
 
-        if comm_with > 0
+        if comm_with >= start_id[]
             remotecall(right_is_ready, comm_with)
             take!(__left_ready__)
 

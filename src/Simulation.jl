@@ -34,7 +34,7 @@ function thermalize!(
     if !(E_tot ≈ E_check)
         error(
             "E_tot inconsistent after thermalization. $E_tot =/= $(E_check)" *
-            " on process #$(myid())"
+            " on process #$(myid()) ($(corr_id[]))"
         )
     end
 
@@ -85,7 +85,7 @@ function simulate!(
 
     # Fool-proof? file creation
     if !isdir(path)
-        if myid() == 1
+        if corr_id[] == 1
             println("'$path' does not exist. Path will be created.")
             mkdir(path)
         else
@@ -138,24 +138,9 @@ function simulate!(
 end
 
 
-# Multi temperature simulate!
-# """
-#     simulate!(
-#         sgraph,
-#         spins,
-#         sys_size,
-#         path,
-#         filename,
-#         Ts,
-#         parameters,
-#         thermalizer,
-#         ME_sweeps
-#     )
-#
-# Starts a simulation on a given lattice (sgraph) with given spins for a set of
-# temperatures Ts. The results will be saved to a file filename1...filenameN
-# created in path.
-# """
+const start_id = Ref{Int64}(0)
+const stop_id = Ref{Int64}(0)
+const corr_id = Ref{Int64}(0)
 function simulate!(
         sgraph::SGraph,
         spins::Vector{Point3{Float64}},
@@ -169,16 +154,25 @@ function simulate!(
     )
 
     if is_parallel(thermalizer)
-        @assert(
-            nprocs() == length(Ts),
-            "The number of processes ($(nprocs())) has to match the number " *
-            "of Temperatures ($(length(Ts)))!"
-        )
-        i = myid()
+        np = nprocs()
+        if np == length(Ts)
+            start_id[] = 1
+            stop_id[] = length(Ts)
+            corr_id[] = myid()
+        elseif np == length(Ts) + 1
+            start_id[] = 2
+            stop_id[] = length(Ts) + 1
+            corr_id[] = myid() - 1
+        else
+            error(
+                "The number of processes ($(nprocs())) has to match the " *
+                "number of Temperatures ($(length(Ts)))!"
+            )
+        end
         simulate!(
             sgraph, spins, sys_size,
-            path, filename * string(i),
-            Ts[i], parameters,
+            path, filename * string(corr_id[]),
+            Ts[corr_id[]], parameters,
             thermalizer, ME_sweeps
         )
     else
