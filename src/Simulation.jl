@@ -350,7 +350,7 @@ function simulate!(;
     simulate!(
         sim, spins,L,
         path * folder, filename,
-        length(Ts) == 1 ? T : Ts,
+        length(Ts) == 1 ? Ts[1] : Ts,
         parameters,
         thermalizer,
         ME_sweeps
