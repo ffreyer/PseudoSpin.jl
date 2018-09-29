@@ -14,7 +14,8 @@ h	0.010000	0.0	0.5
 #g	0.52
 
 TGen_method	Freezer
-thermalizer_method	ProbabilityEqualizer
+#thermalizer_method	ProbabilityEqualizer
+thermalizer_method	ParallelTempering
 batch_size	10
 adaptive_sample_size	1000
 skip	10000

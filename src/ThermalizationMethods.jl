@@ -462,14 +462,20 @@ left_is_ready() = put!(__left_ready__, true)
 right_is_ready() = put!(__right_ready__, true)
 
 # data transfer
-const __E_tot__ = Channel{Float64}(1)
-set_E_tot!(value) = put!(__E_tot__, value)
-const __beta__ = Channel{Float64}(1)
-set_beta!(value) = put!(__beta__, value)
-const __do_swap__ = Channel{Bool}(1)
-set_do_swap!(value) = put!(__do_swap__, value)
-const __spins__ = Channel{Vector{Point3{Float64}}}(1)
-set_spins!(value) = put!(__spins__, value)
+# const __E_tot__ = Channel{Float64}(1)
+# set_E_tot!(value) = put!(__E_tot__, value)
+# const __beta__ = Channel{Float64}(1)
+# set_beta!(value) = put!(__beta__, value)
+# const __do_swap__ = Channel{Bool}(1)
+# set_do_swap!(value) = put!(__do_swap__, value)
+# const __spins__ = Channel{Vector{Point3{Float64}}}(1)
+# set_spins!(value) = put!(__spins__, value)
+
+# transfer (beta, E_tot, (rand), spins)
+const __left_channel__ = Channel{Tuple}(1)
+put_left!(value) = put!(__left_channel__, value)
+const __right_channel__ = Channel{Tuple}(1)
+put_right!(value) = put!(__right_channel__, value)
 
 # global switch allows continuation of parallel tempering after thermalization
 const __switch__ = Ref{Int64}(0)
@@ -498,55 +504,76 @@ function _parallel_tempering!(
         comm_with = rank + 1
 
         if comm_with <= stop_id[]
-            # Tell comm_with "I am ready"
-            remotecall(left_is_ready, comm_with)
-            # Wait for comm_with to be ready
-            take!(__right_ready__)
+            p = rand()
+            remotecall(put_left!, comm_with, (beta, E_tot, p, spins))
+            remote_beta, remote_E_tot, remote_spins = take!(__right_channel__)
 
-            # Receive data from comm_with
-            remote_E_tot = take!(__E_tot__)
-            remote_beta = take!(__beta__)
-
-            # Determine whether to swap and notify comm_with
             @fastmath dEdT = (remote_E_tot - E_tot) * (remote_beta - beta)
-            do_swap = (dEdT > 0.0) || (exp(dEdT) > rand())
-            remotecall(set_do_swap!, comm_with, do_swap)
-
-            # Perform data swap
-            if do_swap
-                old_spins = deepcopy(spins)
-                remotecall(set_spins!, comm_with, old_spins)
-                remotecall(set_E_tot!, comm_with, E_tot)
-                spins .= take!(__spins__)
+            if (dEdT > 0.0) || (exp(dEdT) > p)
+                spins .= remote_spins
                 init_edges!(sgraph, spins)
                 return remote_E_tot
             end
+
+            # # Tell comm_with "I am ready"
+            # remotecall(left_is_ready, comm_with)
+            # # Wait for comm_with to be ready
+            # take!(__right_ready__)
+            #
+            # # Receive data from comm_with
+            # remote_E_tot = take!(__E_tot__)
+            # remote_beta = take!(__beta__)
+            #
+            # # Determine whether to swap and notify comm_with
+            # @fastmath dEdT = (remote_E_tot - E_tot) * (remote_beta - beta)
+            # do_swap = (dEdT > 0.0) || (exp(dEdT) > rand())
+            # remotecall(set_do_swap!, comm_with, do_swap)
+            #
+            # # Perform data swap
+            # if do_swap
+            #     old_spins = deepcopy(spins)
+            #     remotecall(set_spins!, comm_with, old_spins)
+            #     remotecall(set_E_tot!, comm_with, E_tot)
+            #     spins .= take!(__spins__)
+            #     init_edges!(sgraph, spins)
+            #     return remote_E_tot
+            # end
         end
     else
         # comm_with <- me
         comm_with = rank - 1
 
         if comm_with >= start_id[]
-            # Tell comm_with "I am ready"
-            remotecall(right_is_ready, comm_with)
-            # Wait for comm_with to be ready
-            take!(__left_ready__)
+            remotecall(put_right!, comm_with, (beta, E_tot, spins))
+            remote_beta, remote_E_tot, p, remote_spins = take!(__left_channel__)
 
-            # Send data to comm_with
-            remotecall(set_E_tot!, comm_with, E_tot)
-            remotecall(set_beta!, comm_with, beta)
-
-            # Wait for response (whether to swap)
-            do_swap = take!(__do_swap__)
-
-            if do_swap
-                old_spins = deepcopy(spins)
-                remotecall(set_spins!, comm_with, old_spins)
-                spins .= take!(__spins__)
-                remote_E_tot = take!(__E_tot__)
+            @fastmath dEdT = (remote_E_tot - E_tot) * (remote_beta - beta)
+            if (dEdT > 0.0) || (exp(dEdT) > p)
+                spins .= remote_spins
                 init_edges!(sgraph, spins)
                 return remote_E_tot
             end
+
+            # # Tell comm_with "I am ready"
+            # remotecall(right_is_ready, comm_with)
+            # # Wait for comm_with to be ready
+            # take!(__left_ready__)
+            #
+            # # Send data to comm_with
+            # remotecall(set_E_tot!, comm_with, E_tot)
+            # remotecall(set_beta!, comm_with, beta)
+            #
+            # # Wait for response (whether to swap)
+            # do_swap = take!(__do_swap__)
+            #
+            # if do_swap
+            #     old_spins = deepcopy(spins)
+            #     remotecall(set_spins!, comm_with, old_spins)
+            #     spins .= take!(__spins__)
+            #     remote_E_tot = take!(__E_tot__)
+            #     init_edges!(sgraph, spins)
+            #     return remote_E_tot
+            # end
         end
     end
     return E_tot
