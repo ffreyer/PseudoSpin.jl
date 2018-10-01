@@ -52,6 +52,9 @@ function init_edges!(sgraph::SGraph, spins::Vector{Point3{Float64}})
     nothing
 end
 
+# To avoid re-allocating these vectors every spin_flip, keep them as globals
+const __xys__ = Vector{Float64}(4)
+const __zs__  = Vector{Float64}(4)
 """
     scalar_prod(edge, index, new_spin, spins)
 
@@ -82,16 +85,13 @@ function generate_scalar_products(
         new_spin::Point3{Float64}
     )
 
-    xys = Array{Float64}(4)
-    zs = Array{Float64}(4)
-
     for j in eachindex(sgraph.nodes[i].first)
-        @inbounds xys[j], zs[j] = scalar_prod(
+        @inbounds __xys__[j], __zs__[j] = scalar_prod(
             sgraph.nodes[i].first[j], i, new_spin, spins
         )
     end
 
-    xys, zs
+    __xys__, __zs__
 end
 
 """

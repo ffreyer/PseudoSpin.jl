@@ -36,15 +36,43 @@ include("simulation.jl")
 
 
 ARGS = ["parameters/test.param"]
-println("Attempting simulation with 10k + 10k sweeps. Runtime: (estimate: ~40s)")
+println("Attempting simulation with 10k + 10k sweeps. Runtime: (estimate: ~8s)")
 @time include("mainf.jl")
 rm("output/full_test.part")
 
+# addprocs(3)
+# ARGS = ["parameters/test_mpi.param"]
+# println("Attempting simulation with 10k + 10k sweeps. Runtime: (estimate: ~40s)")
+# @time include("mainf.jl")
+# rm("output/mpi_test1.part")
+# rmprocs(workers())
 
 exit(0)
 ################################################################################
 
 # Bunch of random garbage
+addprocs(3)
+nprocs()
+@everywhere using PseudoSpin
+cd("test/")
+@profile simulate!(
+    path = "output/",
+    filename = "mpi_test",
+    L = 4,
+    J1s = (-0.4, 0.0),
+    J2s = (0.0, 0.0),
+    K = 0.0,
+    T = 0.7,
+    # Ts = [0.01, 0.1, 0.7, 0.8],
+    TH_sweeps = 10000,
+    Freeze_temperature = 2.0,
+    ME_sweeps = 10000,
+    h = PseudoSpin.Point3{Float64}(0.010000, 0.0, 0.5),
+    # thermalizer_method = ParallelTempering,
+)
+Juno.profiler()
+rm("output/mpi_test1.part")
+rmprocs(workers())
 
 
 begin
