@@ -183,12 +183,16 @@ ProfileView.view()
 
 
 
---J1              0.017973 seconds (177.73 k allocations: 19.492 MiB)
---J2              0.019289 seconds (177.73 k allocations: 19.492 MiB)
---K               0.023963 seconds (177.73 k allocations: 19.492 MiB)
---h               0.018609 seconds (177.73 k allocations: 19.492 MiB)
---J1,J2,K,h       0.025527 seconds (177.73 k allocations: 19.492 MiB)
---J1,J2,K,h,g     0.029076 seconds (177.73 k allocations: 19.492 MiB)
---J1,g            0.022431 seconds (177.73 k allocations: 19.492 MiB)
---zeta            0.025108 seconds (933.73 k allocations: 31.028 MiB, 4.42% gc time)
---J3              0.019154 seconds (177.73 k allocations: 19.492 MiB)
+
+--J1              0.006557 seconds (3.00 k allocations: 140.625 KiB)
+--J2              0.007380 seconds (3.00 k allocations: 140.625 KiB)
+--K               0.011251 seconds (3.00 k allocations: 140.625 KiB)
+--h               0.005898 seconds (3.00 k allocations: 140.625 KiB)
+--J1,J2,K,h       0.012720 seconds (3.00 k allocations: 140.625 KiB)
+--J1,J2,K,h,g     0.015402 seconds (3.00 k allocations: 140.625 KiB)
+--J1,g            0.009772 seconds (3.00 k allocations: 140.625 KiB)
+--zeta            0.013739 seconds (759.00 k allocations: 11.673 MiB)
+--J3              0.007747 seconds (3.00 k allocations: 140.625 KiB)
+
+Attempting simulation with 10k + 10k sweeps. Runtime: (estimate: ~8s)
+  5.918624 seconds (2.02 M allocations: 535.722 MiB, 0.64% gc time)

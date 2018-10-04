@@ -193,13 +193,11 @@ for param_group in param_groups
                 beta::Float64,
                 param::Parameters
             )
-            for (i, new_spin) in zip(
-                    rand(1:sgraph.N_nodes, sgraph.N_nodes),
-                    rand_spin(sgraph.N_nodes)
-                )
-                # calls spin_flip_J1J2g
+            for _ in 1:sgraph.N_nodes
                 E_tot = $(Symbol(:spin_flip_, param_group...))(
-                    sgraph, spins, i, new_spin, E_tot, beta, param
+                    sgraph, spins,
+                    trunc(Int64, 1 + sgraph.N_nodes * rand()), rand_spin(),
+                    E_tot, beta, param
                 )
             end
 
