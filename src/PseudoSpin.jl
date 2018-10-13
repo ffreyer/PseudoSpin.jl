@@ -8,11 +8,12 @@ const Point3f0 = Point{3, Float32}
 const Vec3f0 = Vec{3, Float32}
 
 
+using LinearAlgebra, Printf, Distributed
 # I'm implementing new methods for these functions
 import Base: *, ==, in, findfirst, push!#, Base.show
 # import Base.start, Base.next, Base.length, Base.done, Base.eltype
-import Base: length, next, done, last
-import Base: mean, var, range
+import Base: length, next, done, last, range
+import Statistics: mean, var
 
 
 # Bravais lattice vectors, positions

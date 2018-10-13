@@ -1,6 +1,6 @@
 using PseudoSpin
 if VERSION >= v"0.7.0"
-    using Test
+    using Test, Distributed
     const gc = GC.gc
 else
     using Base.Test
@@ -36,16 +36,19 @@ include("simulation.jl")
 
 
 ARGS = ["parameters/test.param"]
-println("Attempting simulation with 10k + 10k sweeps. Runtime: (estimate: ~8s)")
+println("Attempting simulation with 10k + 10k sweeps. Runtime: (estimate: ~6s)")
 @time include("mainf.jl")
 rm("output/full_test.part")
 
-# addprocs(3)
-# ARGS = ["parameters/test_mpi.param"]
-# println("Attempting simulation with 10k + 10k sweeps. Runtime: (estimate: ~40s)")
-# @time include("mainf.jl")
-# rm("output/mpi_test1.part")
-# rmprocs(workers())
+addprocs(3)
+ARGS = ["parameters/test_mpi.param"]
+println("Attempting parallel simulation with 10k + 10k sweeps. Runtime: (estimate: ~17s)")
+@time include("mainf.jl")
+rm("output/mpi_test1.part")
+rm("output/mpi_test2.part")
+rm("output/mpi_test3.part")
+rm("output/mpi_test4.part")
+rmprocs(workers())
 
 exit(0)
 ################################################################################

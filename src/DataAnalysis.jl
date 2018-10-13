@@ -43,7 +43,7 @@ binning. Returns a Binning Analysis object. Use push! to add values.
 function BinnerA(min_output_size::Integer)
     BinnerA(
         BinningCompressor[],
-        Array{Float64}(2 * min_output_size),
+        Array{Float64}(undef, 2 * min_output_size),
         UInt32(1),
         UInt32(2 * min_output_size),
         Int64[],

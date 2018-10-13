@@ -73,7 +73,7 @@ function simulate!(
 
     # Thermalization
     if T <= 0.0
-        warn("T = 0.0 is not fully implemented, Assuming T = 1e-10")
+        @warn("T = 0.0 is not fully implemented, Assuming T = 1e-10")
         T = 1e-10
     end
 
@@ -98,7 +98,7 @@ function simulate!(
     if isfile(path * filename * ".part")
         stats = open(path * filename * ".part") do f; stat(f) end
         if stats.size == 0
-            warn(
+            @warn(
                 "File '$filename' already exists in path '$path', but it is " *
                 "empty. Overwriting '$filename'."
             )
