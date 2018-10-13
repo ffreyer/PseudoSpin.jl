@@ -15,9 +15,6 @@ function write_header!(
         sys_size::Int64,
         N_nodes::Int64,
         K_edges::Int64,
-        # Js::Vector{Tuple{Float64, Float64}},
-        # h::Point3{Float64},
-        # g::Float64,
         parameters::Parameters,
         T::Float64,
         do_parallel_tempering::Bool,
@@ -34,15 +31,6 @@ function write_header!(
     write(file, N_nodes)
     write(file, K_edges)
 
-    # write(file, length(Js))
-    # write(file, length(Js[1]))
-    # for J in Js
-    #     for value in J
-    #         write(file, value)
-    #     end
-    # end
-    # NOTE this does not change file reading
-    # NOTE except now it does because I added J3 and zeta
     write(file, 5);                 write(file, 2)
     write(file, parameters.J1[1]);  write(file, parameters.J1[2])
     write(file, parameters.J2[1]);  write(file, parameters.J2[2])

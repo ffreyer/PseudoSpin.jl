@@ -247,8 +247,11 @@ Example:
 """
 function jackknife(f::Function, args...)
     N = length(args[1])
-    x0s = map(sum, args) # (xs, ...) -> (sum xs, ...)
+    # (xs, ...) -> (sum xs, ...)
+    x0s = map(sum, args)
+    # (xs, ...), (∑xs, ...) -> [(xs-∑xs)/(N_1), ...]
     x_avs_s = map((xs, x0) -> [(x0 - xs[i]) / (N-1) for i in 1:N], args, x0s)
+    # x0s -> x_avs
     x0s = map(x -> x / N, x0s)
 
     y0 = map(f, x0s...)
@@ -256,7 +259,7 @@ function jackknife(f::Function, args...)
 
     # outputs mean and standard deviation of the distribution of means (which
     # is the standard error of ys)
-    y0, sqrt((N-1) / N * sum((y_avs .- y0).^2))
+    y0, sqrt((N-1)/N * mapreduce(y_av -> (y_av - y0)^2, +, y_avs))
 end
 
 

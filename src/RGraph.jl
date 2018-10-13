@@ -98,7 +98,6 @@ function RGraph(c::Crystal, N::Integer)
                 end
             end
 
-            # _dirs = [x*B_.x + y*B.y + z*B.z + B_.pos - B.pos for x in -N:N for y in -N:N for z in -N:N]
             _dirs = [Vec3i(x, y, z) for x in -N:N for y in -N:N for z in -N:N]
             append!(dirs, _dirs)
             append!(sq_distances, map(uvw -> dist(uvw, B_, B), _dirs))

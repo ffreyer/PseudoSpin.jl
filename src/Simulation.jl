@@ -7,7 +7,6 @@ function thermalize!(
         sweep::Function,
         E_comp::Compressor
     )
-    # print("correct\n")
     init_edges!(sgraph, spins)
     E_tot = totalEnergy(sgraph, spins, parameters)
 
@@ -29,14 +28,14 @@ function thermalize!(
         end
     end
 
-    # NOTE Safety check, can be removed
+    # NOTE Safety check
     init_edges!(sgraph, spins)
     E_check = totalEnergy(sgraph, spins, parameters)
     if !(E_tot ≈ E_check)
-        warn("E_tot inconsistent after thermalization. $E_tot =/= $(E_check)")
-        warn("On process #$(MPI.Comm_rank(MPI.COMM_WORLD))")
-        MPI.Finalize()
-        exit()
+        error(
+            "E_tot inconsistent after thermalization. $E_tot =/= $(E_check)" *
+            " on process #$(myid()) ($(corr_id[]))"
+        )
     end
 
     last(thermalizer, state)
@@ -74,7 +73,7 @@ function simulate!(
 
     # Thermalization
     if T <= 0.0
-        warn("T = 0.0 is not fully implemented, Assuming T = 1e-10")
+        @warn("T = 0.0 is not fully implemented, Assuming T = 1e-10")
         T = 1e-10
     end
 
@@ -86,15 +85,31 @@ function simulate!(
 
     # Fool-proof? file creation
     if !isdir(path)
-        println(
-            path, " does not exist",
-            ". New files will be inserted."
-        )
-        mkdir(path)
+        if corr_id[] == 1
+            println("'$path' does not exist. Path will be created.")
+            mkdir(path)
+        else
+            println(
+                "'path' does not exist. Waiting for main process to create " *
+                "path."
+            )
+        end
     end
     if isfile(path * filename * ".part")
-        println("File ", filename, " exists in path ", path)
-        file = open(path * filename * string(time()) * ".part", "w")
+        stats = open(path * filename * ".part") do f; stat(f) end
+        if stats.size == 0
+            @warn(
+                "File '$filename' already exists in path '$path', but it is " *
+                "empty. Overwriting '$filename'."
+            )
+            file = open(path * filename * ".part", "w")
+        else
+            println(
+                "File '$filename' already exists in path '$path'. Since it " *
+                "is not empty, a new file will be created."
+            )
+            file = open(path * filename * string(time()) * ".part", "w")
+        end
     else
         file = open(path * filename * ".part", "w")
     end
@@ -123,24 +138,9 @@ function simulate!(
 end
 
 
-# Multi temperature simulate!
-# """
-#     simulate!(
-#         sgraph,
-#         spins,
-#         sys_size,
-#         path,
-#         filename,
-#         Ts,
-#         parameters,
-#         thermalizer,
-#         ME_sweeps
-#     )
-#
-# Starts a simulation on a given lattice (sgraph) with given spins for a set of
-# temperatures Ts. The results will be saved to a file filename1...filenameN
-# created in path.
-# """
+const start_id = Ref{Int64}(0)
+const stop_id = Ref{Int64}(0)
+const corr_id = Ref{Int64}(0)
 function simulate!(
         sgraph::SGraph,
         spins::Vector{Point3{Float64}},
@@ -154,21 +154,27 @@ function simulate!(
     )
 
     if is_parallel(thermalizer)
-        try
-            MPI.Init()
-        catch e
-            println("MPI has to be loaded before starting a simulation!")
-            throw(e)
+        np = nprocs()
+        if np == length(Ts)
+            start_id[] = 1
+            stop_id[] = length(Ts)
+            corr_id[] = myid()
+        elseif np == length(Ts) + 1
+            start_id[] = 2
+            stop_id[] = length(Ts) + 1
+            corr_id[] = myid() - 1
+        else
+            error(
+                "The number of processes ($(nprocs())) has to match the " *
+                "number of Temperatures ($(length(Ts)))!"
+            )
         end
-        @assert MPI.Comm_size(MPI.COMM_WORLD) == length(Ts) "The number of processes has to match the number of Temperatures!"
-        i = MPI.Comm_rank(MPI.COMM_WORLD)+1
         simulate!(
             sgraph, spins, sys_size,
-            path, filename * string(i),
-            Ts[i], parameters,
+            path, filename * string(corr_id[]),
+            Ts[corr_id[]], parameters,
             thermalizer, ME_sweeps
         )
-        MPI.Finalize()
     else
         for (i, T) in enumerate(Ts)
             simulate!(
@@ -323,8 +329,6 @@ function simulate!(;
         "Parallel tempering only works with multiple Temperatures!"
     )
 
-    # println("Do parallel tempering? $do_parallel_tempering")
-
     # Simulation graph
     rgraph = RGraph(diamond("A"), neighbor_search_depth)
     do_paths && generate_paths!(rgraph)
@@ -346,7 +350,7 @@ function simulate!(;
     simulate!(
         sim, spins,L,
         path * folder, filename,
-        length(Ts) == 1 ? T : Ts,
+        length(Ts) == 1 ? Ts[1] : Ts,
         parameters,
         thermalizer,
         ME_sweeps

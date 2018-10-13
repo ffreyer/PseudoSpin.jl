@@ -37,6 +37,7 @@ function Parameters(;
     Parameters(J1s, J2s, J3s, K, g, h, zeta)
 end
 
+
 """
     init_edges!(sgraph, spins)
 
@@ -51,7 +52,9 @@ function init_edges!(sgraph::SGraph, spins::Vector{Point3{Float64}})
     nothing
 end
 
-
+# To avoid re-allocating these vectors every spin_flip, keep them as globals
+const __xys__ = Vector{Float64}(4)
+const __zs__  = Vector{Float64}(4)
 """
     scalar_prod(edge, index, new_spin, spins)
 
@@ -70,7 +73,6 @@ function scalar_prod(
                                new_spin[3] * spins[j][3]
 end
 
-
 """
     generate_scalar_products(sgraph, spins, i, new_spin)
 
@@ -83,18 +85,14 @@ function generate_scalar_products(
         new_spin::Point3{Float64}
     )
 
-    xys = Array{Float64}(undef, 4)
-    zs = Array{Float64}(undef, 4)
-
     for j in eachindex(sgraph.nodes[i].first)
-        @inbounds xys[j], zs[j] = scalar_prod(
+        @inbounds __xys__[j], __zs__[j] = scalar_prod(
             sgraph.nodes[i].first[j], i, new_spin, spins
         )
     end
 
-    xys, zs
+    __xys__, __zs__
 end
-
 
 """
     update_edges!(node, xys, zs)
@@ -112,7 +110,7 @@ end
 
 
 ################################################################################
-#### new stack
+#### Sweep stack
 ################################################################################
 
 
@@ -170,9 +168,9 @@ function sweep_picker(param::Parameters)
     if param_group in param_groups
         return eval(:($(Symbol(:sweep_, param_group...))))
     else
-        warn(
+        @warn(
             "No method generated for (" *
-            reduce((a, b) -> a * ", " * b, "", map(string, param_group)) *
+            reduce((a, b) -> a * ", " * b, map(string, param_group)) *
             "). Using the most general method instead. Consider implementing" *
             " a specialized method by adding the parameters to param_groups!"
         )
@@ -195,13 +193,11 @@ for param_group in param_groups
                 beta::Float64,
                 param::Parameters
             )
-            for (i, new_spin) in zip(
-                    rand(1:sgraph.N_nodes, sgraph.N_nodes),
-                    rand_spin(sgraph.N_nodes)
-                )
-                # calls spin_flip_J1J2g
+            for _ in 1:sgraph.N_nodes
                 E_tot = $(Symbol(:spin_flip_, param_group...))(
-                    sgraph, spins, i, new_spin, E_tot, beta, param
+                    sgraph, spins,
+                    trunc(Int64, 1 + sgraph.N_nodes * rand()), rand_spin(),
+                    E_tot, beta, param
                 )
             end
 
@@ -364,7 +360,6 @@ for param_group in param_groups
 
             $(dozeta && quote #-------------------------------------------------
                 id = n.second
-                # So explicit, yet so implicit :o
                 @inbounds dE += param.zeta * (
                     delta_s[1] * (
                         2.0 * ( # xy-plane terms
@@ -461,7 +456,113 @@ end
 # function only gets called once. This also helps verifying the correctness of
 # totalEnergy and deltaEnergy.
 
-# DEPRECATED
+
+
+"""
+    totalEnergy(sgraph, spins, parameters)
+
+Calculates the total energy of the current system.
+"""
+function totalEnergy(
+        sgraph::SGraph,
+        spins::Vector{Point3{Float64}},
+        param::Parameters
+    )
+    E = 0.
+    for e in sgraph.second
+        # second enighbor - J2
+        E += param.J2[1] * (
+            spins[e.n1][1] * spins[e.n2][1] +
+            spins[e.n1][2] * spins[e.n2][2]
+        ) + param.J2[2] * spins[e.n1][3] * spins[e.n2][3]
+        # zeta
+        if e.plane == :xy
+            E += 2.0 * param.zeta * (
+                spins[e.n1][1] * spins[e.n2][1] -
+                spins[e.n1][2] * spins[e.n2][2]
+            )
+        elseif e.plane == :xz
+            E += param.zeta * (
+                -(
+                    spins[e.n1][1] * spins[e.n2][1] -
+                    spins[e.n1][2] * spins[e.n2][2]
+                ) - sqrt3 * (
+                    spins[e.n1][1] * spins[e.n2][2] +
+                    spins[e.n1][2] * spins[e.n2][1]
+                )
+            )
+        elseif e.plane == :yz
+            E += param.zeta * (
+                -(
+                    spins[e.n1][1] * spins[e.n2][1] -
+                    spins[e.n1][2] * spins[e.n2][2]
+                ) + sqrt3 * (
+                    spins[e.n1][1] * spins[e.n2][2] +
+                    spins[e.n1][2] * spins[e.n2][1]
+                )
+            )
+        else
+            error("Second neighbor plane defined incorrectly as $(e.plane).")
+        end
+    end
+
+    # J3
+    for e in sgraph.third
+        E += param.J3[1] * (
+            spins[e.n1][1] * spins[e.n2][1] +
+            spins[e.n1][2] * spins[e.n2][2]
+        ) + param.J3[2] * spins[e.n1][3] * spins[e.n2][3]
+    end
+
+    # J1, K
+    for i in eachindex(sgraph.first)
+        e = sgraph.first[i]
+        E += param.J1[1] * e.xy + param.J1[2] * e.z
+        for p in sgraph.paths[i]
+            E += param.K * (e.xy * p.z + e.z * p.xy)
+        end
+    end
+
+    # g
+    # Checked:
+    # factor 0.5 (overcounting edges)
+    # number of edges (12x a-b-c, 2x (overcounting) 6x c-a-b)
+    # edges/paths for first node correct
+    for ei in eachindex(sgraph.first)
+        e12 = sgraph.first[ei]
+        for e23 in sgraph.nodes[e12.n2].first   # LID: 1 -> 2 -> 1
+            e12 == e23 && continue
+            n3 = e23.n1 != e12.n2 ? e23.n1 : e23.n2
+            E += 0.5param.g * (
+                spins[e12.n1][1] * spins[e12.n2][1] * spins[n3][2] +
+                spins[e12.n1][1] * spins[e12.n2][2] * spins[n3][1] +
+                spins[e12.n1][2] * spins[e12.n2][1] * spins[n3][1] -
+                spins[e12.n1][2] * spins[e12.n2][2] * spins[n3][2]
+            )
+        end
+        for e23 in sgraph.nodes[e12.n1].first   # LID: 2 -> 1 -> 2
+            e12 == e23 && continue              # overcounting cause 2 <- 1 <- 2
+            n3 = e23.n1 != e12.n1 ? e23.n1 : e23.n2
+            E += 0.5param.g * (
+                spins[e12.n2][1] * spins[e12.n1][1] * spins[n3][2] +
+                spins[e12.n2][1] * spins[e12.n1][2] * spins[n3][1] +
+                spins[e12.n2][2] * spins[e12.n1][1] * spins[n3][1] -
+                spins[e12.n2][2] * spins[e12.n1][2] * spins[n3][2]
+            )
+        end
+    end
+
+    # h
+    for S in spins
+        E -= dot(param.h, S)
+    end
+
+    E
+end
+
+
+# NOTE DEPRECATED
+
 function totalEnergy(
         sgraph::SGraph,
         spins::Vector{Point3{Float64}},
@@ -562,105 +663,6 @@ function totalEnergy(
         for S in spins
             E -= dot(h, S)
         end
-    end
-
-    E
-end
-
-
-"""
-    totalEnergy(sgraph, spins, parameters)
-
-Calculates the total energy of the current system.
-"""
-function totalEnergy(
-        sgraph::SGraph,
-        spins::Vector{Point3{Float64}},
-        param::Parameters
-    )
-    E = 0.
-    for e in sgraph.second
-        E += param.J2[1] * (
-            spins[e.n1][1] * spins[e.n2][1] +
-            spins[e.n1][2] * spins[e.n2][2]
-        ) + param.J2[2] * spins[e.n1][3] * spins[e.n2][3]
-        if e.plane == :xy
-            E += 2.0 * param.zeta * (
-                spins[e.n1][1] * spins[e.n2][1] -
-                spins[e.n1][2] * spins[e.n2][2]
-            )
-        elseif e.plane == :xz
-            E += param.zeta * (
-                -(
-                    spins[e.n1][1] * spins[e.n2][1] -
-                    spins[e.n1][2] * spins[e.n2][2]
-                ) - sqrt3 * (
-                    spins[e.n1][1] * spins[e.n2][2] +
-                    spins[e.n1][2] * spins[e.n2][1]
-                )
-            )
-        elseif e.plane == :yz
-            E += param.zeta * (
-                -(
-                    spins[e.n1][1] * spins[e.n2][1] -
-                    spins[e.n1][2] * spins[e.n2][2]
-                ) + sqrt3 * (
-                    spins[e.n1][1] * spins[e.n2][2] +
-                    spins[e.n1][2] * spins[e.n2][1]
-                )
-            )
-        else
-            error("Second neighbor plane defined incorrectly as $(e.plane).")
-        end
-    end
-
-    for e in sgraph.third
-        E += param.J3[1] * (
-            spins[e.n1][1] * spins[e.n2][1] +
-            spins[e.n1][2] * spins[e.n2][2]
-        ) + param.J3[2] * spins[e.n1][3] * spins[e.n2][3]
-    end
-
-    for i in eachindex(sgraph.first)
-        e = sgraph.first[i]
-        E += param.J1[1] * e.xy + param.J1[2] * e.z
-        for p in sgraph.paths[i]
-            # E += (Js[3][1] * e.xy + Js[3][2] * e.z) * (Js[4][1] * p.xy + Js[4][2] * p.z)
-            # E += (Js[4][1] * e.xy + Js[4][2] * e.z) * (Js[3][1] * p.xy + Js[3][2] * p.z)
-            E += param.K * (e.xy * p.z + e.z * p.xy)
-        end
-    end
-
-    # Checked:
-    # factor 0.5 (overcounting edges)
-    # number of edges (12x a-b-c, 2x (overcounting) 6x c-a-b)
-    # edges/paths for first node correct
-    for ei in eachindex(sgraph.first)
-        e12 = sgraph.first[ei]
-        for e23 in sgraph.nodes[e12.n2].first   # LID: 1 -> 2 -> 1
-            e12 == e23 && continue
-            n3 = e23.n1 != e12.n2 ? e23.n1 : e23.n2
-            E += 0.5param.g * (
-                spins[e12.n1][1] * spins[e12.n2][1] * spins[n3][2] +
-                spins[e12.n1][1] * spins[e12.n2][2] * spins[n3][1] +
-                spins[e12.n1][2] * spins[e12.n2][1] * spins[n3][1] -
-                spins[e12.n1][2] * spins[e12.n2][2] * spins[n3][2]
-            )
-        end
-        for e23 in sgraph.nodes[e12.n1].first   # LID: 2 -> 1 -> 2
-            e12 == e23 && continue              # overcounting cause 2 <- 1 <- 2
-            n3 = e23.n1 != e12.n1 ? e23.n1 : e23.n2
-            E += 0.5param.g * (
-                spins[e12.n2][1] * spins[e12.n1][1] * spins[n3][2] +
-                spins[e12.n2][1] * spins[e12.n1][2] * spins[n3][1] +
-                spins[e12.n2][2] * spins[e12.n1][1] * spins[n3][1] -
-                spins[e12.n2][2] * spins[e12.n1][2] * spins[n3][2]
-            )
-        end
-    end
-
-    for S in spins
-        E -= dot(param.h, S)
     end
 
     E

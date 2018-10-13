@@ -1,4 +1,6 @@
-# Just measure!
+# TODO
+# Can these be reworked to work in a more general way?
+
 @inline function flip1(i::Int64, s::Point3{Float64}, Nhalf::Int64)
     if i <= Nhalf
         return s
@@ -54,10 +56,14 @@ function measure!(
         batch_size::Int64
     )
 
-    # "Staggered" magnetizatio
+    # NOTE
+    # This function only exists to allow multiple dispatch on flip functions.
+    # Without this, the flip function is not known as a static function and
+    # values related to it become type unstable (iirc)
+
+    # "Staggered" magnetization
     # Flips the xy and/or z direction if it maps the current system to a ferro-
     # magnetic one. Mostly use for automatic data evaluation
-
     if sign(parameters.J1[1]) >= 0.0
         if sign(parameters.K) >= 0.0
             flip = flip1
@@ -123,7 +129,6 @@ function measure!(
     srdM2xy = 0.0;  srdM2z = 0.0
 
     E_tot = totalEnergy(sgraph, spins, parameters)
-    switch = 1
 
     for i in 1:N_sweeps
         E_tot = sweep(sgraph, spins, E_tot, beta, parameters)
@@ -148,7 +153,6 @@ function measure!(
         @inbounds push!(Mquad_BA, temp[2])
         @inbounds push!(Moct_BA, temp[3])
 
-        # @inbounds map(push!, dimer, get_dimer_parameter(sgraph, spins))
 
         # 1/N ∑_sites ∑_{e ∈ NN} e.xy
         Dxy = map(n -> mapreduce(e -> e.xy, +, n.first), sgraph.nodes)
@@ -164,9 +168,7 @@ function measure!(
         @inbounds push!(Dimer_z_var, Dz_var)
 
 
-        # if additional_observables
         _spins = map(t -> flip(t..., Nhalf), enumerate(spins))
-        # S = sum(_spins) * invN
         S = reduce(+, _spins) * invN
         srMx += S[1]
         srMy += S[2]
@@ -179,7 +181,6 @@ function measure!(
         temp2 = similar(_spins)
         for j in eachindex(temp2); temp2[j] = _spins[j] - S; end
         vars = mapreduce(s -> s.^2, +, temp2) * invN
-        # vars = mapreduce(s -> (s - S).^2, +, _spins) * invN
         srdMx += vars[1]
         srdMy += vars[2]
         srdMz += vars[3]
@@ -198,11 +199,10 @@ function measure!(
         srdMxabs += vars[1]
         srdMyabs += vars[2]
         srdMzabs += vars[3]
-        # end
 
         if do_pt && (i % batch_size == 0)
-            E_tot = _parallel_tempering!(sgraph, spins, E_tot, beta, switch)
-            switch = 1 - switch
+            E_tot = _parallel_tempering!(sgraph, spins, E_tot, beta)
+            __switch__[] = 1 - __switch__[]
         end
 
         yield()
@@ -211,7 +211,7 @@ function measure!(
     init_edges!(sgraph, spins)
     E_check = totalEnergy(sgraph, spins, parameters)
     if !(E_tot ≈ E_check)
-        warn(
+        @warn(
             "E_tot diverged by $(round(100(E_check - E_tot) / E_check, 3))%" *
             " (E_check = $E_check, E_tot = $E_tot)."
         )
@@ -250,8 +250,7 @@ function measure!(
     write_BA!(file, Dimer_xy_var, "DxyV ")
     write_BA!(file, Dimer_z, "Dz   ")
     write_BA!(file, Dimer_z_var, "DzV  ")
-    #
-    #if additional_observables
+
     K = 1. / N_sweeps
     write_JK!(file, srMx * K, srdMx * K, "rMx  ")
     write_JK!(file, srMy * K, srdMy * K, "rMy  ")
@@ -260,7 +259,6 @@ function measure!(
     write_JK!(file, srMyabs * K, srdMyabs * K, "rMya ")
     write_JK!(file, srMzabs * K, srdMzabs * K, "rMza ")
     write_JK!(file, srM2xy * K, srdM2xy * K, "rMxy ")
-    # end
 
     write_JK!(file, cv, dcv, "cV   ")
     write_JK!(file, dcvdT, ddcvdT, "dcVdT")
