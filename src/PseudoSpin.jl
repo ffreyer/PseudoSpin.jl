@@ -12,11 +12,11 @@ using LinearAlgebra, Printf, Distributed
 # I'm implementing new methods for these functions
 import Base: *, ==, in, findfirst, push!#, Base.show
 # import Base.start, Base.next, Base.length, Base.done, Base.eltype
-import Base: length, next, done, last
+import Base: length, last
 if VERSION >= v"0.7.0"
     import Statistics: mean, var
 else
-    import Base: mean, var
+    import Base: mean, var, next, done
 end
 
 # Bravais lattice vectors, positions

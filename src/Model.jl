@@ -53,8 +53,8 @@ function init_edges!(sgraph::SGraph, spins::Vector{Point3{Float64}})
 end
 
 # To avoid re-allocating these vectors every spin_flip, keep them as globals
-const __xys__ = Vector{Float64}(4)
-const __zs__  = Vector{Float64}(4)
+const __xys__ = Vector{Float64}(undef, 4)
+const __zs__  = Vector{Float64}(undef, 4)
 """
     scalar_prod(edge, index, new_spin, spins)
 

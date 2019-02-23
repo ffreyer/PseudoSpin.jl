@@ -56,15 +56,19 @@ exit(0)
 # Bunch of random garbage
 addprocs(3)
 nprocs()
-@everywhere using PseudoSpin
 cd("test/")
+@everywhere using PseudoSpin, Profile
+cd("/home/frederic/.julia/v0.7/PseudoSpin/test/")
 @profile simulate!(
     path = "output/",
     filename = "mpi_test",
     L = 4,
-    J1s = (-0.4, 0.0),
-    J2s = (0.0, 0.0),
-    K = 0.0,
+    J1s = (-0.4, 0.1),
+    J2s = (1.0, 0.5),
+    J3s = (0.3, 1.0),
+    g = 0.44,
+    zeta = 0.7,
+    K = 0.3,
     T = 0.7,
     # Ts = [0.01, 0.1, 0.7, 0.8],
     TH_sweeps = 10000,
@@ -76,6 +80,26 @@ cd("test/")
 Juno.profiler()
 rm("output/mpi_test1.part")
 rmprocs(workers())
+
+
+@code_warntype simulate!(
+    path = "output/",
+    filename = "mpi_test",
+    L = 4,
+    J1s = (-0.4, 0.1),
+    J2s = (1.0, 0.5),
+    J3s = (0.3, 1.0),
+    g = 0.44,
+    zeta = 0.7,
+    K = 0.3,
+    T = 0.7,
+    # Ts = [0.01, 0.1, 0.7, 0.8],
+    TH_sweeps = 10000,
+    Freeze_temperature = 2.0,
+    ME_sweeps = 10000,
+    h = PseudoSpin.Point3{Float64}(0.010000, 0.0, 0.5),
+    # thermalizer_method = ParallelTempering,
+)
 
 
 begin
@@ -165,24 +189,19 @@ begin
     println("----------------------------")
 end
 
-Profile.clear_malloc_data()
-@profile simulate!(
-    J1s = (-1.0, -0.4),
-    J2s = (0.3, 0.12),
-    K = -0.1,
-    g = 0.52,
-    h = PseudoSpin.Point3{Float64}(0.01, 0., 0.5),
-    T = 0.624,
-    TH_sweeps = 10_000,
-    ME_sweeps = 10_000,
-    L = 6,
-    path = "output/",
-    filename = "full_test"
-)
-rm("output/full_test.part")
-Profile.print()
-using ProfileView
-ProfileView.view()
+begin
+    println("----------------------------")
+    code_warntype(
+        PseudoSpin._parallel_tempering!,
+        (
+            SGraph,
+            Vector{PseudoSpin.Point3{Float64}},
+            Float64,
+            Float64
+        )
+    )
+    println("----------------------------")
+end
 
 
 
