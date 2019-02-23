@@ -1,7 +1,7 @@
 #=
-Startup file for seperate simulations
+Startup file for parallel simulations
 
-    mainf.jl parameter.textfile
+    main_cluster.jl parameter.textfile
 
 Will recover parameters from the file and forward them to `simulate!()`. The
 file should be structured as
@@ -14,13 +14,12 @@ where `{keyword}` refers to a keyword argument of `simulate!()` and `{value}`
 to a Number, or String (w/o "). Multiple values are seperated by \t (tabs).
 =#
 
-using PseudoSpin
+using ClusterManagers, PseudoSpin, Distributed
 
 Point3 = PseudoSpin.Point3
 kwargs = Dict{Symbol, Any}()
 argfile = open(ARGS[1], "r")
 
-# Lots of strict parsing
 for argline in eachline(argfile)
     isempty(argline) && continue
     args = split(chomp(argline), "\t")
@@ -105,5 +104,14 @@ end
 
 close(argfile)
 
+addprocs(SlurmManager(length(kwargs[:Ts])))
+@everywhere using PseudoSpin
 
-simulate!(; kwargs...)
+@sync for p in workers()
+    @spawnat p simulate!(; kwargs...)
+end
+
+
+for i in workers()
+    rmprocs(i)
+end
