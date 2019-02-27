@@ -80,42 +80,42 @@ is_parallel(::AbstractParallelTemperingAlgorithm) = true
 
 Returns the initial state of a thermalization method.
 """
-function initialize() end
+initialize
 
 """
     next(<:AbstractThermalizationMethod, state)
 
 Returns the next set of variables as well as the next state.
 """
-function next() end
+next
 
 """
     current_index(<:AbstractThermalizationMethod, state)
 
 Returns the current index of the iteration.
 """
-function current_index() end
+current_index
 
 """
     done(<:AbstractThermalizationMethod, state)
 
 Returns true if the thermalization method has reached its last output.
 """
-function done() end
+done
 
 """
     last(<:AbstractThermalizationMethod, state)
 
 Returns the last set of variables of a thermalization process.
 """
-function last() end
+last
 
 """
     lenght(<:AbstractThermalizationMethod)
 
 Returns the length of a thermalization process.
 """
-function length() end
+length
 
 
 batch_size(::AbstractThermalizationMethod) = -1
@@ -124,7 +124,10 @@ adaptive_sample_size(::AbstractThermalizationMethod) = -1
 # Some methods, like ConstantT, don't have a "T_max"
 T_max(::AbstractThermalizationMethod) = -1.0
 
-#######################
+
+################################################################################
+### ConstantT Methods
+################################################################################
 
 
 struct ConstantT <: AbstractTemperatureGenerator
@@ -141,7 +144,9 @@ length(th::ConstantT) = th.N
 set_beta!(::ConstantT, state::Tuple{Float64, Int64}, beta::Float64) = (beta, state[2])
 
 
-#######################
+################################################################################
+### Freezer Methods
+################################################################################
 
 
 struct Freezer <: AbstractTemperatureGenerator
@@ -155,6 +160,11 @@ struct Freezer <: AbstractTemperatureGenerator
     exp_deltas::Vector{Float64}
 end
 
+"""
+    Freezer()
+
+Creates a temperature generator with simulated annealing.
+"""
 function Freezer(;
         N::Int64 = 0,
         T_max::Float64 = 10.0,
@@ -223,16 +233,9 @@ T_max(th::Freezer) = th.T_max
 set_beta!(::Freezer, state::Tuple, beta::Float64) = (state[1:end-2]..., 1.0/beta, beta)
 
 
-##############################################
-#=
-Stacking parallel tempering and simulated annealing should be
-fine, so let's allow this.
-
-All adaptive methods share code with the basic pt algorithm,
-so they should just spawm a pt...
-- Nope, sometimes I need probabilities, sometimes not
-=#
-##############################################
+################################################################################
+### NoParallelTempering
+################################################################################
 
 
 # This is a dummy to construct TGen without a ParallelTemperingAlgirthm
@@ -248,8 +251,20 @@ function (::Type{NoParallelTempering{TGen}})(;
 end
 
 
-#######################
+################################################################################
+### ParallelTempering (Generation)
+################################################################################
 
+##############################################
+#=
+Stacking parallel tempering and simulated annealing should be
+fine, so let's allow this.
+
+All adaptive methods share code with the basic pt algorithm,
+so they should just spawm a pt...
+- Nope, sometimes I need probabilities, sometimes not
+=#
+##############################################
 
 struct ParallelTempering{
         ATG <: AbstractTemperatureGenerator
@@ -449,6 +464,9 @@ T_max(th::ProbabilityEqualizer) = T_max(th.Tgen)
 
 
 ################################################################################
+### parallel tempering implementation
+################################################################################
+
 
 # MPI-ish style interprocess communication
 # Non-blocking send via remotecall(set..., comm_with, data)
