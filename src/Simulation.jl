@@ -270,7 +270,7 @@ function simulate!(;
         folder::String = "",
         filename::String = "T",
         # Simulation graph
-        neighbor_search_depth::Int64 = 2,
+        neighbor_search_depth::Int64 = 3,
         do_paths::Bool = true,
         L::Int64 = 6,
         spins::Vector{Point3{Float64}} = rand_spin(2*L^3),
