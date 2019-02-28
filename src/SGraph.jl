@@ -1,7 +1,3 @@
-# TODO TODO TODO TODO TODO TODO TODO TODO
-# This stuff may fail for very small lattices (L = 1 & 2)
-# TODO TODO TODO TODO TODO TODO TODO TODO
-
 abstract type SEdge end
 
 # Edge for first order neighbours & paths
@@ -309,6 +305,7 @@ mapping matrix indices to list indices and a function mapping flat to matrix
 indices.
 """
 function Basisfill(rgraph::RGraph, N::Integer; border::Symbol=:periodic)
+    @assert L > 2 "Lattice may not generate correctly for L < 3."
     # Indexing
     # index order [(3, 2, 1), 4]
     LSize = N^3
