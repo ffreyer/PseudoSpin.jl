@@ -305,7 +305,7 @@ mapping matrix indices to list indices and a function mapping flat to matrix
 indices.
 """
 function Basisfill(rgraph::RGraph, N::Integer; border::Symbol=:periodic)
-    @assert L > 2 "Lattice may not generate correctly for L < 3."
+    @assert N > 2 "Lattice may not generate correctly for L < 3."
     # Indexing
     # index order [(3, 2, 1), 4]
     LSize = N^3
