@@ -1,6 +1,7 @@
 module PseudoSpin
 
 using StaticArrays.FixedSizeArrays
+using SphereSurfaceHistogram
 
 const Vec3 = Vec{3}
 const Point3 = Point{3}

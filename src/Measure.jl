@@ -128,6 +128,8 @@ function measure!(
     srM2xy = 0.0;   srM2z = 0.0
     srdM2xy = 0.0;  srdM2z = 0.0
 
+    ssh_binner = SSHBinner(10_000)
+
     E_tot = totalEnergy(sgraph, spins, parameters)
 
     for i in 1:N_sweeps
@@ -200,6 +202,8 @@ function measure!(
         srdMyabs += vars[2]
         srdMzabs += vars[3]
 
+        append!(ssh_binner, spins)
+
         if do_pt && (i % batch_size == 0)
             E_tot = _parallel_tempering!(sgraph, spins, E_tot, beta)
             __switch__[] = 1 - __switch__[]
@@ -266,6 +270,9 @@ function measure!(
     write_JK!(file, dM2z, ddM2z, "dM2z ")
 
     write_HB!(file, Es_HB, "Energ")
+    @info "Writing SSH"
+    write_SSHB!(file, ssh_binner, "spins")
+    @info "Done writing SSH"
     write_SC!(file, spins, "spins")
 
     nothing

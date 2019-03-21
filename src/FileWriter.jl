@@ -164,6 +164,30 @@ end
 
 
 """
+    write_SSHB!(file, SSHBinner, ID)
+
+Adds data from a SphereSurfaceHistogram Binner to the file. The section will
+start with *SH* and the ID.
+"""
+function write_SSHB!(file::IOStream, B::SSHBinner, ID::String)
+    # tag
+    @assert length(ID) == 5
+    write(file, "SH")
+    write(file, ID)
+
+    # metadata
+    write(file, length(B.bins))
+
+    # data
+    for bin in B.bins
+        write(file, bin)
+    end
+
+    nothing
+end
+
+
+"""
     write_SC!(file, spins, ID)
 
 Adds a spin configuration to the file. The section will start with *SC* and the
