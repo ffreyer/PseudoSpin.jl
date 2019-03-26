@@ -193,7 +193,7 @@ end
 Adds a spin configuration to the file. The section will start with *SC* and the
 ID.
 """
-function write_SC!(file::IOStream, spins::Vector{Point3{Float64}}, ID::String)
+function write_SC!(file::IOStream, spins::Vector{SVector{3, Float64}}, ID::String)
     # tag
     @assert length(ID) == 5
     write(file, "SC") # "Spin Configuration"

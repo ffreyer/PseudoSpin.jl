@@ -1,6 +1,6 @@
 function thermalize!(
         sgraph::SGraph,
-        spins::Vector{Point3{Float64}},
+        spins::Vector{SVector{3, Float64}},
         T::Float64,
         parameters::Parameters,
         thermalizer::AbstractThermalizationMethod,
@@ -61,7 +61,7 @@ end
 # """
 function simulate!(
         sgraph::SGraph,
-        spins::Vector{Point3{Float64}},
+        spins::Vector{SVector{3, Float64}},
         sys_size::Int64,
         path::String,
         filename::String,
@@ -143,7 +143,7 @@ const stop_id = Ref{Int64}(0)
 const corr_id = Ref{Int64}(0)
 function simulate!(
         sgraph::SGraph,
-        spins::Vector{Point3{Float64}},
+        spins::Vector{SVector{3, Float64}},
         sys_size::Int64,
         path::String,
         filename::String,
@@ -201,7 +201,7 @@ end
         neighbor_search_depth::Int64 = 2,
         do_paths::Bool = true,
         L::Int64 = 6,
-        spins::Vector{Point3{Float64}} = rand_spin(2*L^3),
+        spins::Vector{SVector{3, Float64}} = rand_spin(2*L^3),
 
         # Temperatures
         T::Float64 = 1.0,
@@ -214,7 +214,7 @@ end
         J1s::NTuple{2, Float64} = (J1, lambda*J1),
         J2s::NTuple{2, Float64} = (J2, lambda*J2),
         K::Float64 = 0.,
-        h::Point3{Float64} = Point3(0.),
+        h::SVector{3, Float64} = SVector(0.0, 0.0, 0.0),
         g::Float64 = 0.,
         parameters::Parameters = Parameters(
             J1s = J1s,
@@ -273,7 +273,7 @@ function simulate!(;
         neighbor_search_depth::Int64 = 3,
         do_paths::Bool = true,
         L::Int64 = 6,
-        spins::Vector{Point3{Float64}} = rand_spin(2*L^3),
+        spins::Vector{SVector{3, Float64}} = rand_spin(2*L^3),
         # Simulation parameter
         T::Float64 = 1.0,
         Ts::Vector{Float64} = [T],
@@ -285,7 +285,7 @@ function simulate!(;
         J2s::NTuple{2, Float64} = (J2, lambda*J2),
         J3s::NTuple{2, Float64} = (J3, lambda*J3),
         K::Float64 = 0.,
-        h::Point3{Float64} = Point3(0.),
+        h::SVector{3, Float64} = SVector(0.0, 0.0, 0.0),
         g::Float64 = 0.,
         zeta::Float64 = 0.,
         parameters::Parameters = Parameters(

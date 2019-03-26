@@ -18,13 +18,13 @@ and edge is given in Node, as multiple edges of same length a grouped there.
 abstract type AbstractREdge end
 
 mutable struct SimpleREdge <: AbstractREdge
-    dir::Vec3i
+    dir::SVector{3, Int64}
     from::Integer # AbstractNode
     to::Integer   # AbstractNode
 end
 
 mutable struct PathREdge <: AbstractREdge
-    dirs::Vector{Vec3i} # should contain 3 Vec3i's
+    dirs::Vector{SVector{3, Int64}} # should contain 3 SVector{3, Int64}'s
     from::Integer
     tos::Vector{Integer} # should contain 3 indices
 end
@@ -57,7 +57,7 @@ node at that point.
 """
 function RGraph(c::Crystal, N::Integer)
 
-    function dist(uvw::Vec3i, B_::Bravais, B::Bravais)
+    function dist(uvw::SVector{3, Int64}, B_::Bravais, B::Bravais)
         v = uvw * B_ - B.pos
         dot(v, v)
     end
@@ -80,7 +80,7 @@ function RGraph(c::Crystal, N::Integer)
     #   - get order of distances
     #   - create edges up to order N
     for i in 1:N_Atoms
-        dirs = Vec3i[]
+        dirs = SVector{3, Int64}[]
         sq_distances = Float64[]
         B = Bs[i]
 
@@ -98,7 +98,7 @@ function RGraph(c::Crystal, N::Integer)
                 end
             end
 
-            _dirs = [Vec3i(x, y, z) for x in -N:N for y in -N:N for z in -N:N]
+            _dirs = [SVector{3, Int64}(x, y, z) for x in -N:N for y in -N:N for z in -N:N]
             append!(dirs, _dirs)
             append!(sq_distances, map(uvw -> dist(uvw, B_, B), _dirs))
         end
@@ -144,15 +144,15 @@ Adds edges for the 4-spin term to an existing RGraph.
 """
 function generate_paths!(rgraph::RGraph)
     for i1 in eachindex(rgraph.nodes)       # for each node n1
-        paths = PathREdge[]                 # n1 is at Vec3i(0, 0, 0) per definition
+        paths = PathREdge[]                 # n1 is at SVector{3, Int64}(0, 0, 0) per definition
         for e1 in rgraph.nodes[i1].edges[1]     # each edge n1 -> n2
             i2 = e1.to                          # n2 is at dir1
             dir1 = e1.dir
             for e2 in rgraph.nodes[i2].edges[1]     # each edge n2 -> n3 with n3 != n1
                 i3 = e2.to                          # n3 is at dir1 + dir2 (because the unit vectors are the same)
-                dir2 = dir1 + e2.dir                # may not be at Vec3i(0, 0, 0) (no reversal)
+                dir2 = dir1 + e2.dir                # may not be at SVector{3, Int64}(0, 0, 0) (no reversal)
                 # no reversal
-                if dir2 == Vec3i(0, 0, 0); continue end
+                if dir2 == SVector{3, Int64}(0, 0, 0); continue end
                 for e3 in rgraph.nodes[i3].edges[1]     # each edge n3 -> n4 with n4 != n3
                     i4 = e3.to                          # n4 is at dir2 + dir3
                     dir3 = dir2 + e3.dir                # may not be at dir1

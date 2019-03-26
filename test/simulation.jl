@@ -57,7 +57,7 @@ end
     spins = rand_spin(sim.N_nodes)
     ps.init_edges!(sim, spins)
     Js = [(0.0, 0.0), (0.0, 0.0), (0.0, 0.0), (0.0, 0.0)]
-    h = Point3(0.)
+    h = SVector{3, Float64}(0.0, 0.0, 0.0)
     g = 0.0
 
     #-----------------------------------------------------
@@ -127,7 +127,7 @@ end
 
     # fields
     Js = [(0.0, 0.0), (0.0, 0.0), (0.0, 0.0), (0.0, 0.0)]
-    h = Point3(0.3, 0.6, 0.9)
+    h = SVector{3, Float64}(0.3, 0.6, 0.9)
     param = Parameters(h = h)
     test_param!(param, Js, g, h)
 
@@ -149,7 +149,7 @@ end
 
     # all
     Js = [(-0.2, 0.4), (1.0, -0.3), (-0.25, 0.0), (0.0, 0.9)]
-    h = Point3(-rand(3))
+    h = SVector{3, Float64}(rand(3)...)
     param = Parameters(J1s = Js[1], J2s = Js[2], K = Js[3][1]*Js[4][2], h = h)
     test_param!(param, Js, g, h)
 
@@ -192,7 +192,7 @@ end
 
     g = 0.85
     Js = [(1.0, 0.5), (0.0, 0.0), (0.0, 0.0), (0.0, 0.0)]
-    h = Point3(0.)
+    h = SVector{3, Float64}(0.0, 0.0, 0.0)
     param = Parameters(J1s=Js[1], g=g)
     test_param!(param, Js, g, h)
 

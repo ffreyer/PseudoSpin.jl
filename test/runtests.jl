@@ -9,12 +9,8 @@ end
 isfile("output/full_test.part") && rm("output/full_test.part")
 
 const ps = PseudoSpin
+const SVector = ps.SVector
 
-const Vec3f0 = ps.Vec3f0
-const Vec3i = ps.Vec3i
-const Vec3 = ps.Vec3
-const Point3f0 = ps.Point3f0
-const Point3 = ps.Point3
 include("Crystal.jl")
 
 include("RGraph.jl")
@@ -27,7 +23,7 @@ include("RGraph.jl")
             +,
             rand_spin(1_000_000)
         ) / 1_000_000
-    ) .<= Point3(0.01, 0.01, 0.01)
+    ) .<= SVector{3, Float64}(0.01, 0.01, 0.01)
 )
 
 include("Thermalization.jl")

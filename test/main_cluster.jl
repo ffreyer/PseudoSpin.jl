@@ -16,7 +16,6 @@ to a Number, or String (w/o "). Multiple values are seperated by \t (tabs).
 
 using PseudoSpin, Distributed
 
-Point3 = PseudoSpin.Point3
 kwargs = Dict{Symbol, Any}()
 argfile = open(ARGS[1], "r")
 
@@ -74,7 +73,7 @@ for argline in eachline(argfile)
     elseif startswith(args[1], "ME") || startswith(args[1], "measurement")
         push!(kwargs, :ME_sweeps => parse(Int64, args[2]))
     elseif startswith(args[1], "h")
-        push!(kwargs, :h => Point3(map(x -> parse(Float64, x), args[2:end])))
+        push!(kwargs, :h => SVector{3, Float64}(map(x -> parse(Float64, x), args[2:end])))
     elseif args[1] == "g"
         push!(kwargs, :g => parse(Float64, args[2]))
     elseif args[1] == "zeta"
@@ -94,7 +93,7 @@ for argline in eachline(argfile)
     elseif startswith(args[1], "spins") || startswith(args[1],"spin")
         println("TODO: custom initial spin vectors")
         exit(-1)
-        # push!(spins, Point3{Float64}(map(x -> parse(Float64, x), args[2:end])))
+        # push!(spins, SVector{3, Float64}{Float64}(map(x -> parse(Float64, x), args[2:end])))
     elseif isempty(args[1])
         continue
     else

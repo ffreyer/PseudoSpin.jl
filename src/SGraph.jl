@@ -112,7 +112,7 @@ end
         second::Vector{SEdge2},
         third::Vector{SEdge2},
         paths::Vector{Vector{SEdge1}},
-        IDs::Vector{Tuple{Vec3i, Int64}},
+        IDs::Vector{Tuple{SVector{3, Int64}, Int64}},
         flat_index::Function
     )
 
@@ -126,7 +126,7 @@ function connect_nodes!(
         second::Vector{SEdge2},
         third::Vector{SEdge2},
         paths::Vector{Vector{SEdge1}},
-        IDs::Vector{Tuple{Vec3i, Int64}},
+        IDs::Vector{Tuple{SVector{3, Int64}, Int64}},
         flat_index::Function
     )
 
@@ -309,12 +309,12 @@ function Basisfill(rgraph::RGraph, N::Integer; border::Symbol=:periodic)
     # Indexing
     # index order [(3, 2, 1), 4]
     LSize = N^3
-    flattening_vector = Vec3i(N^2, N, 1)
+    flattening_vector = SVector{3, Int64}(N^2, N, 1)
 
     # Build indexing functions
 
     # tested completely for 32-edge lattice
-    function periodic(uvw, LID) # (uvw::Vec3i, LID::Int64)
+    function periodic(uvw, LID) # (uvw::SVector{3, Int64}, LID::Int64)
         # index order: [(3, 2, 1), 4]
         x = 0
         y = 0
@@ -329,11 +329,11 @@ function Basisfill(rgraph::RGraph, N::Integer; border::Symbol=:periodic)
         uvw[3] >= N && (z = - N)
         # print(x, ", ", y, ", ", z, " \t ")
 
-        1 + LSize * (LID-1) + dot(flattening_vector, uvw + Vec3i(x, y, z)) # IndexT
+        1 + LSize * (LID-1) + dot(flattening_vector, uvw + SVector{3, Int64}(x, y, z)) # IndexT
     end
 
     # Should always be in bounds; should fit loop
-    function open(uvw, LID) # (uvw::Vec3i, LID::Int64)
+    function open(uvw, LID) # (uvw::SVector{3, Int64}, LID::Int64)
         # uvw, LID = args
         # index order: [(3, 2, 1), 4]
 
@@ -363,7 +363,7 @@ function Basisfill(rgraph::RGraph, N::Integer; border::Symbol=:periodic)
         v = div(r, flattening_vector[2])                # 0-based
         w = r % flattening_vector[2]                    # 0-based
 
-        Vec3i(u, v, w), LID
+        SVector{3, Int64}(u, v, w), LID
     end
 
 
@@ -384,7 +384,7 @@ function Basisfill(rgraph::RGraph, N::Integer; border::Symbol=:periodic)
     # index order: [(3, 2, 1), 4]
 
     IDs = [
-        (Vec3i(u, v, w), i)
+        (SVector{3, Int64}(u, v, w), i)
         for i in 1:length(rgraph.nodes)
         for u in 0:N-1 for v in 0:N-1 for w in 0:N-1
     ]       # the last loop runs through first
@@ -425,7 +425,7 @@ function rand_spin()
     ct = 2 * rand(Float64) - 1
     st = sqrt(1. - ct*ct) #sin(acos(ct)) # max(0., )
 
-    Point3{Float64}(
+    SVector{3, Float64}(
         st * cos(phi),
         st * sin(phi),
         ct
@@ -437,7 +437,7 @@ function rand_spin(N::Int64)
     cts = 2 * rand(Float64, N) .- 1
     sts = sqrt.(1. .- cts .* cts) # sin(acos(cts)) # max(0., )
 
-    [Point3{Float64}(
+    [SVector{3, Float64}(
         sts[i] .* cos.(phis[i]),
         sts[i] .* sin.(phis[i]),
         cts[i]

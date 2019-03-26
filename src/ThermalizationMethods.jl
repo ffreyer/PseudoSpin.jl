@@ -288,7 +288,7 @@ function initialize(
         th::ParallelTempering,
         T::Float64,
         sgraph::SGraph,
-        spins::Vector{Point3{Float64}},
+        spins::Vector{SVector{3, Float64}},
         # E_tot::Float64
     )
     beta, Tgen_state = initialize(th.Tgen, T)
@@ -362,7 +362,7 @@ function initialize(
         th::ProbabilityEqualizer,
         T::Float64,
         sgraph::SGraph,
-        spins::Vector{Point3{Float64}}
+        spins::Vector{SVector{3, Float64}}
     )
     cum_prob = 0.0
     N_prob = 0
@@ -491,11 +491,11 @@ right_is_ready() = put!(__right_ready__, true)
 
 # transfer (beta, E_tot, (rand), spins)
 const __left_channel__ = Channel{Tuple{
-    Float64, Float64, Float64, Vector{Point3{Float64}}
+    Float64, Float64, Float64, Vector{SVector{3, Float64}}
 }}(1)
 put_left!(value) = put!(__left_channel__, value)
 const __right_channel__ = Channel{Tuple{
-    Float64, Float64, Vector{Point3{Float64}}
+    Float64, Float64, Vector{SVector{3, Float64}}
 }}(1)
 put_right!(value) = put!(__right_channel__, value)
 
@@ -505,7 +505,7 @@ const __switch__ = Ref{Int64}(0)
 
 """
     parallel_tempering!(
-        spins::Vector{Point3{Float64}},
+        spins::Vector{SVector{3, Float64}},
         E_tot::Float64,
         beta::Float64,
         switch::Int64
@@ -515,7 +515,7 @@ Neat?
 """
 function _parallel_tempering!(
         sgraph::SGraph,
-        spins::Vector{Point3{Float64}},
+        spins::Vector{SVector{3, Float64}},
         E_tot::Float64,
         beta::Float64
     )
@@ -559,7 +559,7 @@ end
 
 function _parallel_tempering_adaptive!(
         sgraph::SGraph,
-        spins::Vector{Point3{Float64}},
+        spins::Vector{SVector{3, Float64}},
         E_tot::Float64,
         beta::Float64
     )

@@ -21,24 +21,24 @@ r = RGraph(diamond("A"), 2)
         # dir gives the (u, v, w) of the neighboring node
         # the positions and directions have been checked in "Crystals.jl"
         # check (u, v, w) here
-        @test edges[1][1].dir == Vec3i(-1, 0, 0)
-        @test edges[1][2].dir == Vec3i(0, -1, 0)
-        @test edges[1][3].dir == Vec3i(0, 0, -1)
-        @test edges[1][4].dir == Vec3i(0, 0, 0)
+        @test edges[1][1].dir == SVector{3, Int64}(-1, 0, 0)
+        @test edges[1][2].dir == SVector{3, Int64}(0, -1, 0)
+        @test edges[1][3].dir == SVector{3, Int64}(0, 0, -1)
+        @test edges[1][4].dir == SVector{3, Int64}(0, 0, 0)
 
-        @test edges[2][1].dir == Vec3i(-1, 0, 0)
-        @test edges[2][2].dir == Vec3i(-1, 0, 1)
-        @test edges[2][3].dir == Vec3i(-1, 1, 0)
-        @test edges[2][4].dir == Vec3i(0, -1, 0)
-        @test edges[2][5].dir == Vec3i(0, -1, 1)
-        @test edges[2][6].dir == Vec3i(0, 0, -1)
+        @test edges[2][1].dir == SVector{3, Int64}(-1, 0, 0)
+        @test edges[2][2].dir == SVector{3, Int64}(-1, 0, 1)
+        @test edges[2][3].dir == SVector{3, Int64}(-1, 1, 0)
+        @test edges[2][4].dir == SVector{3, Int64}(0, -1, 0)
+        @test edges[2][5].dir == SVector{3, Int64}(0, -1, 1)
+        @test edges[2][6].dir == SVector{3, Int64}(0, 0, -1)
 
-        @test edges[2][7].dir == Vec3i(0, 0, 1)
-        @test edges[2][8].dir == Vec3i(0, 1, -1)
-        @test edges[2][9].dir == Vec3i(0, 1, 0)
-        @test edges[2][10].dir == Vec3i(1, -1, 0)
-        @test edges[2][11].dir == Vec3i(1, 0, -1)
-        @test edges[2][12].dir == Vec3i(1, 0, 0)
+        @test edges[2][7].dir == SVector{3, Int64}(0, 0, 1)
+        @test edges[2][8].dir == SVector{3, Int64}(0, 1, -1)
+        @test edges[2][9].dir == SVector{3, Int64}(0, 1, 0)
+        @test edges[2][10].dir == SVector{3, Int64}(1, -1, 0)
+        @test edges[2][11].dir == SVector{3, Int64}(1, 0, -1)
+        @test edges[2][12].dir == SVector{3, Int64}(1, 0, 0)
     end
 
 
@@ -54,24 +54,24 @@ r = RGraph(diamond("A"), 2)
     end
 
     @testset "Node 2" begin
-        @test edges[1][1].dir == Vec3i(0, 0, 0)
-        @test edges[1][2].dir == Vec3i(0, 0, 1)
-        @test edges[1][3].dir == Vec3i(0, 1, 0)
-        @test edges[1][4].dir == Vec3i(1, 0, 0)
+        @test edges[1][1].dir == SVector{3, Int64}(0, 0, 0)
+        @test edges[1][2].dir == SVector{3, Int64}(0, 0, 1)
+        @test edges[1][3].dir == SVector{3, Int64}(0, 1, 0)
+        @test edges[1][4].dir == SVector{3, Int64}(1, 0, 0)
 
-        @test edges[2][1].dir == Vec3i(-1, 0, 0)
-        @test edges[2][2].dir == Vec3i(-1, 0, 1)
-        @test edges[2][3].dir == Vec3i(-1, 1, 0)
-        @test edges[2][4].dir == Vec3i(0, -1, 0)
-        @test edges[2][5].dir == Vec3i(0, -1, 1)
-        @test edges[2][6].dir == Vec3i(0, 0, -1)
+        @test edges[2][1].dir == SVector{3, Int64}(-1, 0, 0)
+        @test edges[2][2].dir == SVector{3, Int64}(-1, 0, 1)
+        @test edges[2][3].dir == SVector{3, Int64}(-1, 1, 0)
+        @test edges[2][4].dir == SVector{3, Int64}(0, -1, 0)
+        @test edges[2][5].dir == SVector{3, Int64}(0, -1, 1)
+        @test edges[2][6].dir == SVector{3, Int64}(0, 0, -1)
 
-        @test edges[2][7].dir == Vec3i(0, 0, 1)
-        @test edges[2][8].dir == Vec3i(0, 1, -1)
-        @test edges[2][9].dir == Vec3i(0, 1, 0)
-        @test edges[2][10].dir == Vec3i(1, -1, 0)
-        @test edges[2][11].dir == Vec3i(1, 0, -1)
-        @test edges[2][12].dir == Vec3i(1, 0, 0)
+        @test edges[2][7].dir == SVector{3, Int64}(0, 0, 1)
+        @test edges[2][8].dir == SVector{3, Int64}(0, 1, -1)
+        @test edges[2][9].dir == SVector{3, Int64}(0, 1, 0)
+        @test edges[2][10].dir == SVector{3, Int64}(1, -1, 0)
+        @test edges[2][11].dir == SVector{3, Int64}(1, 0, -1)
+        @test edges[2][12].dir == SVector{3, Int64}(1, 0, 0)
     end
 end
 

@@ -11,7 +11,7 @@ struct Parameters
     J3::Tuple{Float64, Float64}
     K::Float64
     g::Float64
-    h::Point3{Float64}
+    h::SVector{3, Float64}
     zeta::Float64
 end
 
@@ -31,7 +31,7 @@ function Parameters(;
         J3s::Tuple{Float64, Float64} = (J3, lambda*J3),
         K::Float64 = 0.0,
         g::Float64 = 0.0,
-        h::Point3{Float64} = Point3(0.0),
+        h::SVector{3, Float64} = SVector(0.0, 0.0, 0.0),
         zeta::Float64 = 0.0
     )
     Parameters(J1s, J2s, J3s, K, g, h, zeta)
@@ -44,7 +44,7 @@ end
 Initialize the pre-calculated values of nearest neighbor edges. This has to
 happen before the first sweep (and any other operation requiring scalar products)
 """
-function init_edges!(sgraph::SGraph, spins::Vector{Point3{Float64}})
+function init_edges!(sgraph::SGraph, spins::Vector{SVector{3, Float64}})
     for e in sgraph.first
         @fastmath @inbounds e.xy = spins[e.n1][1] * spins[e.n2][1] + spins[e.n1][2] * spins[e.n2][2]
         @fastmath @inbounds e.z = spins[e.n1][3] * spins[e.n2][3]
@@ -63,8 +63,8 @@ Calculates new values to be allocated as scalar product on Edge e.
 function scalar_prod(
         e::SEdge1,
         i::Int64,
-        new_spin::Point3{Float64},
-        spins::Vector{Point3{Float64}}
+        new_spin::SVector{3, Float64},
+        spins::Vector{SVector{3, Float64}}
     )
 
     j = i == e.n1 ? e.n2 : e.n1
@@ -80,9 +80,9 @@ Calculates all new scalar products for a node at index i with spin new_spin.
 """
 function generate_scalar_products(
         sgraph::SGraph,
-        spins::Vector{Point3{Float64}},
+        spins::Vector{SVector{3, Float64}},
         i::Int64,
-        new_spin::Point3{Float64}
+        new_spin::SVector{3, Float64}
     )
 
     for j in eachindex(sgraph.nodes[i].first)
@@ -152,7 +152,7 @@ function sweep_picker(param::Parameters)
     doJ3 = param.J3 != (0.0, 0.0)
     doK = param.K != 0.0
     dog = param.g != 0.0
-    doh = param.h != Point3(0.0)
+    doh = param.h != SVector(0.0, 0.0, 0.0)
     dozeta = param.zeta != 0.0
 
     param_group = Symbol[]
@@ -188,7 +188,7 @@ for param_group in param_groups
         # Function names such as sweep_J1J2g
         function $(Symbol(:sweep_, param_group...))(
                 sgraph::SGraph,
-                spins::Vector{Point3{Float64}},
+                spins::Vector{SVector{3, Float64}},
                 E_tot::Float64,
                 beta::Float64,
                 param::Parameters
@@ -211,9 +211,9 @@ for param_group in param_groups
     @eval begin
         function $(Symbol(:spin_flip_, param_group...))(
                 sgraph::SGraph,
-                spins::Vector{Point3{Float64}},
+                spins::Vector{SVector{3, Float64}},
                 i::Int64,
-                new_spin::Point3{Float64},
+                new_spin::SVector{3, Float64},
                 E_tot::Float64,
                 beta::Float64,
                 param::Parameters
@@ -252,9 +252,9 @@ for param_group in param_groups
     @eval begin
         function $(Symbol(:deltaEnergy_, param_group...))(
                 n::SNode,
-                spins::Vector{Point3{Float64}},
+                spins::Vector{SVector{3, Float64}},
                 i::Int64,
-                new_spin::Point3{Float64},
+                new_spin::SVector{3, Float64},
                 xys::Vector{Float64},
                 zs::Vector{Float64},
                 param::Parameters
@@ -465,7 +465,7 @@ Calculates the total energy of the current system.
 """
 function totalEnergy(
         sgraph::SGraph,
-        spins::Vector{Point3{Float64}},
+        spins::Vector{SVector{3, Float64}},
         param::Parameters
     )
     E = 0.
@@ -565,9 +565,9 @@ end
 
 function totalEnergy(
         sgraph::SGraph,
-        spins::Vector{Point3{Float64}},
+        spins::Vector{SVector{3, Float64}},
         Js::Vector{Tuple{Float64, Float64}},
-        h::Point3{Float64}=Point3(0.)
+        h::SVector{3, Float64} = SVector(0.0, 0.0, 0.0)
     )
     E = 0.
     for e in sgraph.second
@@ -603,9 +603,9 @@ end
 # total Energy for (Js, h, g)
 function totalEnergy(
         sgraph::SGraph,
-        spins::Vector{Point3{Float64}},
+        spins::Vector{SVector{3, Float64}},
         Js::Vector{Tuple{Float64, Float64}},
-        h::Point3{Float64},
+        h::SVector{3, Float64},
         g::Float64
     )
     # println("totalEnergy w/ g...")  # NOTE

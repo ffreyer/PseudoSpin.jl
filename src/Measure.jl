@@ -1,28 +1,28 @@
 # TODO
 # Can these be reworked to work in a more general way?
 
-@inline function flip1(i::Int64, s::Point3{Float64}, Nhalf::Int64)
+@inline function flip1(i::Int64, s::SVector{3, Float64}, Nhalf::Int64)
     if i <= Nhalf
         return s
     else
-        @inbounds return Point3{Float64}(-s[1], -s[2], s[3])
+        @inbounds return SVector{3, Float64}(-s[1], -s[2], s[3])
     end
 end
-@inline function flip2(i::Int64, s::Point3{Float64}, Nhalf::Int64)
+@inline function flip2(i::Int64, s::SVector{3, Float64}, Nhalf::Int64)
     if i <= Nhalf
         return s
     else
-        return Point3{Float64}(-s[1], -s[2], -s[3])
+        return SVector{3, Float64}(-s[1], -s[2], -s[3])
     end
 end
-@inline function flip3(i::Int64, s::Point3{Float64}, Nhalf::Int64)
+@inline function flip3(i::Int64, s::SVector{3, Float64}, Nhalf::Int64)
     return s
 end
-@inline function flip4(i::Int64, s::Point3{Float64}, Nhalf::Int64)
+@inline function flip4(i::Int64, s::SVector{3, Float64}, Nhalf::Int64)
     if i <= Nhalf
         return s
     else
-        @inbounds return Point3{Float64}(s[1], s[2], -s[3])
+        @inbounds return SVector{3, Float64}(s[1], s[2], -s[3])
     end
 end
 
@@ -46,7 +46,7 @@ saved to file. (Note: This does not append a file header)
 """
 function measure!(
         sgraph::SGraph,
-        spins::Vector{Point3{Float64}},
+        spins::Vector{SVector{3, Float64}},
         beta::Float64,
         parameters::Parameters,
         file::IOStream,
@@ -78,7 +78,7 @@ function measure!(
 
     measure!(
         sgraph::SGraph,
-        spins::Vector{Point3{Float64}},
+        spins::Vector{SVector{3, Float64}},
         beta::Float64,
         parameters::Parameters,
         file::IOStream,
@@ -93,7 +93,7 @@ end
 
 function measure!(
         sgraph::SGraph,
-        spins::Vector{Point3{Float64}},
+        spins::Vector{SVector{3, Float64}},
         beta::Float64,
         parameters::Parameters,
         file::IOStream,
@@ -148,7 +148,7 @@ function measure!(
         @inbounds push!(M2z_BA, abs(S[3]))
 
         @inbounds temp = mapreduce(
-            v -> Point3{Float64}(0., sqrt(v[1] * v[1] + v[2] * v[2]), abs(v[3])),
+            v -> SVector{3, Float64}(0., sqrt(v[1] * v[1] + v[2] * v[2]), abs(v[3])),
             +,
             spins
         ) * invN
