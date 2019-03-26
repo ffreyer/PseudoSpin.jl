@@ -40,17 +40,62 @@ println("Attempting simulation with 10k + 10k sweeps. Runtime: (estimate: ~6s)")
 @time include("mainf.jl")
 rm("output/full_test.part")
 
-addprocs(3)
 ARGS = ["parameters/test_mpi.param"]
 println("Attempting parallel simulation with 10k + 10k sweeps. Runtime: (estimate: ~17s)")
-@time include("mainf.jl")
+@time include("main_cluster.jl")
 rm("output/mpi_test1.part")
 rm("output/mpi_test2.part")
 rm("output/mpi_test3.part")
 rm("output/mpi_test4.part")
-rmprocs(workers())
+
 
 exit(0)
+
+
+using Revise
+using PseudoSpin, PseudoSpinUtils
+# using SphereSurfaceHistogram
+
+PseudoSpin.SSHBinner
+cell = @datawith J1 == -1 hy == 0 hz == 0
+data = read_merged(cell[:path][1])
+
+@time simulate!(
+    path = "/home/frederic/.julia/dev/PseudoSpin/test/",
+    L = data[:L],
+    spins = map(PseudoSpin.Point3{Float64}, data[:spins][50]),
+    J1 = data[:J1],
+    J2 = data[:J2],
+    J3 = data[:J3],
+    lambda = data[:lambda],
+    K = data[:K],
+    g = data[:gamma],
+    zeta = data[:zeta],
+    T = data[:T][50],
+    TH_sweeps = 10_000,
+    ME_sweeps = 10_000
+)
+
+
+function areas(B)
+    output = Float64[]
+    for i in eachindex(B.phi_divisions)
+        t1 = B.thetas[i+1]
+        t2 = B.thetas[i]
+        for _ in 1:B.phi_divisions[i]
+            dphi = 2pi / B.phi_divisions[i]
+            push!(output, dphi * (cos(t2) - cos(t1)))
+        end
+    end
+    output
+end
+dAs = areas(B)
+mean(dAs)
+mean(dAs) |> eps
+std(dAs)
+maximum(dAs) - minimum(dAs)
+
+
 ################################################################################
 
 # Bunch of random garbage
@@ -218,3 +263,62 @@ end
 
 Attempting simulation with 10k + 10k sweeps. Runtime: (estimate: ~8s)
   5.918624 seconds (2.02 M allocations: 535.722 MiB, 0.64% gc time)
+
+r = RGraph(diamond("A"), 3)
+generate_paths!(r)
+sim, _, __ = Basisfill(r, 8)
+Js = [(-0.2, 0.4), (1.0, -0.3), (-0.25, 0.0), (0.0, 0.9)]
+h = PseudoSpin.Point3(-rand(3))
+param = Parameters(J1s = Js[1], J2s = Js[2], K = Js[3][1]*Js[4][2], h = h, zeta=0.3, g=0.7)
+
+spins = rand_spin(1024)
+E_tot = totalEnergy(sim, spins, param)
+using BenchmarkTools
+sweep = sweep_picker(param)
+test(sweep, sim, spins, E_tot, param) = sweep(sim, spins, E_tot, 1.0/10., param)
+
+@benchmark test($sweep, $sim, $spins, $E_tot, $param)
+@benchmark sweep(sim, spins, E_tot, 1.0/10., param)
+@benchmark append!($B, $spins)
+
+
+f(x) = a - bx - cx^3
+f(1) = 0 => a - b - c = 0
+f(-1) = 1 => a + b + c = 1
+
+g(x, p) = @. (p[1] + p[2] - p[1]*x - p[2]*x^3) / (2p[1] + 2p[2])
+param = [5., 20.]
+ys = eachindex(B.zs) / length(B.zs)
+fit = curve_fit(g, B.zs, ys, param)
+f(x) = 0.5 - 7/22 * x - 7/132 * x^3
+f(x) = 0.5 - 7/22 * x - 1/22 * x^3 - 1/22 * x^5- 1/22 * x^15 - 1/22 * x^33
+f(x) = 0.5 - 7/22 * x - 1x^5 / 22 - 3x^11 / 22
+f(x) = 0.5 - 7/22 * x - 1x^5 / 22 - 1x^7 / 22 - 1x^21 / 22 - 1x^31 / 22
+f(x) = 0.5 - 7/22 * x - 1x^5 / 22 - 1*x^9 / 22 - 1*x^11 / 22 - x^31 / 22
+f(x) = 0.5 - 28/88 * x - x^3 / 88 - 3*x^5 / 88 - x^9 / 22 - 1*x^11 / 22 - x^31 / 22
+f(x) = 0.5 - 1/88 * (28x + x^3 + 5x^5 + 4x^9 + 0*x^17 + 6x^31)
+
+const c = 1/22
+f(x) = 0.5 - c*x*(
+    7.0 + (((x*x)*x)*x)*(
+        1.0 + (((x*x)*x)*x) * (
+            1.0 + (((((((x*x)*x)*x)*x)*x)*x)*x)*(
+                1.0 + (((((((((((((x*x)*x)*x)*x)*x)*x)*x)*x)*x)*x)*x)*x)*x)
+            )
+        )
+    )
+)
+f(x) = 0.5 - 7/22 * x - 1x^5 / 22 - 1*x^9 / 22 - 1*x^17 / 22 - x^31 / 22
+
+g(x, l) = trunc(Int64,
+    l * (0.5 - c*x*(
+        7.0 + (((x*x)*x)*x)*(
+            1.0 + (((x*x)*x)*x) * (
+                1.0 + (((((((x*x)*x)*x)*x)*x)*x)*x)*(
+                    1.0 + (((((((((((((x*x)*x)*x)*x)*x)*x)*x)*x)*x)*x)*x)*x)*x)
+                )
+            )
+        )
+    ))
+)
+g2(x, l) = trunc(Int64, l*acos(x))
