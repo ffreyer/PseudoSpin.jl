@@ -270,9 +270,7 @@ function measure!(
     write_JK!(file, dM2z, ddM2z, "dM2z ")
 
     write_HB!(file, Es_HB, "Energ")
-    @info "Writing SSH"
     write_SSHB!(file, ssh_binner, "spins")
-    @info "Done writing SSH"
     write_SC!(file, spins, "spins")
 
     nothing
