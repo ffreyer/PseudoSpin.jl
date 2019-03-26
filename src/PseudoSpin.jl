@@ -1,12 +1,17 @@
 module PseudoSpin
 
-using StaticArrays.FixedSizeArrays
+using StaticArrays
 using SphereSurfaceHistogram
 
-const Vec3 = Vec{3}
-const Point3 = Point{3}
-const Point3f0 = Point{3, Float32}
-const Vec3f0 = Vec{3, Float32}
+# NOTE
+# These definitions come from FixedSizeArrays, which has been integrated into
+# StaticArrays and is being phased out.
+# TODO remove these aliases
+const Vec3 = SVector{3}
+const Point3 = SVector{3}
+const Point3f0 = SVector{3, Float32}
+const Vec3f0 = SVector{3, Float32}
+const Vec3i = SVector{3, Int64}
 
 
 using LinearAlgebra, Printf, Distributed
