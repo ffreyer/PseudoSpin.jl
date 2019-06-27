@@ -128,6 +128,10 @@ const param_groups = [
     [:J1, :J2, :K, :g],
     [:J1, :J2, :K, :h],     # Tested
     [:J1, :J2, :K],
+    [:J1, :g :h :zeta],
+    [:J1, :g :zeta],
+    [:J1, :h, :zeta],
+    [:J1, :zeta],
     [:J1, :g, :h],
     [:J1, :g],      # Tested
     [:J1],          # Tested
