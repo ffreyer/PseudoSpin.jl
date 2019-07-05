@@ -94,6 +94,7 @@ saved to file. (Note: This does not append a file header)
 function measure!(
         sgraph::SGraph,
         spins::Vector{SVector{3, Float64}},
+        sampler::Function,
         beta::Float64,
         parameters::Parameters,
         file::IOStream,
@@ -133,7 +134,7 @@ function measure!(
     E_tot = totalEnergy(sgraph, spins, parameters)
 
     for i in 1:N_sweeps
-        E_tot = sweep(sgraph, spins, E_tot, beta, parameters)
+        E_tot = sweep(sgraph, spins, sampler, E_tot, beta, parameters)
         @inbounds Es[i] = E_tot * invN
         push!(E_BA, E_tot * invN)
 

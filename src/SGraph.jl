@@ -443,3 +443,19 @@ function rand_spin(N::Int64)
         cts[i]
     ) for i in 1:N]
 end
+
+
+"""
+    rand_XY_spin([, N])
+
+Returns a (an array of N) random spin(s) in the XY plane.
+"""
+function rand_XY_spin()
+    phi = 2 * pi * rand(Float64)
+    SVector{3, Float64}(cos(phi), sin(phi), 0.0)
+end
+
+function rand_XY_spin(N::Int64)
+    phis = 2 * pi * rand(Float64, N)
+    [SVector{3, Float64}(cos.(phis[i]), sin.(phis[i]), 0.0) for i in 1:N]
+end

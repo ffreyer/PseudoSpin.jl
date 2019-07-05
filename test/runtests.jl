@@ -25,6 +25,15 @@ include("RGraph.jl")
         ) / 1_000_000
     ) .<= SVector{3, Float64}(0.01, 0.01, 0.01)
 )
+@test all(
+    abs.(
+        reduce(
+            +,
+            rand_XY_spin(1_000_000)
+        ) / 1_000_000
+    ) .<= SVector{3, Float64}(0.01, 0.01, 0.0)
+)
+
 
 include("Thermalization.jl")
 
@@ -49,7 +58,8 @@ exit(0)
 
 
 using Revise
-using PseudoSpin, PseudoSpinUtils
+using PseudoSpin
+using PseudoSpinUtils
 # using SphereSurfaceHistogram
 
 PseudoSpin.SSHBinner
@@ -70,6 +80,17 @@ data = read_merged(cell[:path][1])
     T = data[:T][50],
     TH_sweeps = 10_000,
     ME_sweeps = 10_000
+)
+
+L = 6
+@time simulate!(
+    path = "/files/home/part2/ffreyer/Xenial/.julia/dev/PseudoSpin/test/output/",
+    J1 = -1.0,
+    L = L,
+    # spins = PseudoSpin.SVector{3, Float64}[[1, 0, 0] for _ in 1:2L^3],
+    T = 0.5,
+    TH_sweeps = 10_000,
+    ME_sweeps = 100_000
 )
 
 

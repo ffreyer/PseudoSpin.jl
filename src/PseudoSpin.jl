@@ -25,8 +25,9 @@ export RGraph, generate_paths!
 
 # Lattice graph
 include("SGraph.jl")
-export SGraph, Basisfill
-export rand_spin, rand_spin!, get_positions
+export SGraph, Basisfill, get_positions
+export rand_spin, rand_spin!
+export rand_XY_spin, rand_XY_spin!
 
 # Essential Metropolis functions (energy, sweep, ...)
 include("Model.jl")

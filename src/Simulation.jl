@@ -1,6 +1,7 @@
 function thermalize!(
         sgraph::SGraph,
         spins::Vector{SVector{3, Float64}},
+        sampler::Function,
         T::Float64,
         parameters::Parameters,
         thermalizer::AbstractThermalizationMethod,
@@ -13,7 +14,7 @@ function thermalize!(
     if is_parallel(thermalizer)
         beta, state = initialize(thermalizer, T, sgraph, spins)
         while !done(thermalizer, state)
-            E_tot = sweep(sgraph, spins, E_tot, beta, parameters)
+            E_tot = sweep(sgraph, spins, sampler, E_tot, beta, parameters)
             beta, E_tot, state = next(thermalizer, state, E_tot)
             push!(E_comp, E_tot)
             yield()
@@ -21,7 +22,7 @@ function thermalize!(
     else
         beta, state = initialize(thermalizer, T)
         while !done(thermalizer, state)
-            E_tot = sweep(sgraph, spins, E_tot, beta, parameters)
+            E_tot = sweep(sgraph, spins, sampler, E_tot, beta, parameters)
             beta, state = next(thermalizer, state)
             push!(E_comp, E_tot)
             yield()
@@ -63,6 +64,7 @@ function simulate!(
         sgraph::SGraph,
         spins::Vector{SVector{3, Float64}},
         sys_size::Int64,
+        sampler::Function,
         path::String,
         filename::String,
         T::Float64,
@@ -81,7 +83,10 @@ function simulate!(
     # Add a variable to control the compression level here?
     E_comp = Compressor(1000)
     sweep = sweep_picker(parameters)
-    beta = thermalize!(sgraph, spins, T, parameters, thermalizer, sweep, E_comp)
+    beta = thermalize!(
+        sgraph, spins, sampler,
+        T, parameters, thermalizer, sweep, E_comp
+    )
 
     # Fool-proof? file creation
     if !isdir(path)
@@ -128,7 +133,8 @@ function simulate!(
 
     # Measurement
     measure!(
-        sgraph, spins, beta, parameters, file, sweep, ME_sweeps,
+        sgraph, spins, sampler,
+        beta, parameters, file, sweep, ME_sweeps,
         is_parallel(thermalizer), batch_size(thermalizer)
     )
 
@@ -145,6 +151,7 @@ function simulate!(
         sgraph::SGraph,
         spins::Vector{SVector{3, Float64}},
         sys_size::Int64,
+        sampler::Function,
         path::String,
         filename::String,
         Ts::Vector{Float64},    # <- multiple
@@ -170,7 +177,7 @@ function simulate!(
             )
         end
         simulate!(
-            sgraph, spins, sys_size,
+            sgraph, spins, sys_size, sampler,
             path, filename * string(corr_id[]),
             Ts[corr_id[]], parameters,
             thermalizer, ME_sweeps
@@ -178,7 +185,7 @@ function simulate!(
     else
         for (i, T) in enumerate(Ts)
             simulate!(
-                sgraph, spins, sys_size,
+                sgraph, spins, sys_size, sampler,
                 path, filename * string(i),
                 T, parameters,
                 thermalizer, ME_sweeps, h, g
@@ -274,6 +281,7 @@ function simulate!(;
         do_paths::Bool = true,
         L::Int64 = 6,
         spins::Vector{SVector{3, Float64}} = rand_spin(2*L^3),
+        sampler::Function = rand_spin,
         # Simulation parameter
         T::Float64 = 1.0,
         Ts::Vector{Float64} = [T],
@@ -348,7 +356,7 @@ function simulate!(;
     end
 
     simulate!(
-        sim, spins,L,
+        sim, spins, L, sampler,
         path * folder, filename,
         length(Ts) == 1 ? Ts[1] : Ts,
         parameters,

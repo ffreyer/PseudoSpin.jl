@@ -193,6 +193,7 @@ for param_group in param_groups
         function $(Symbol(:sweep_, param_group...))(
                 sgraph::SGraph,
                 spins::Vector{SVector{3, Float64}},
+                sampler::Function,
                 E_tot::Float64,
                 beta::Float64,
                 param::Parameters
@@ -200,7 +201,7 @@ for param_group in param_groups
             for _ in 1:sgraph.N_nodes
                 E_tot = $(Symbol(:spin_flip_, param_group...))(
                     sgraph, spins,
-                    trunc(Int64, 1 + sgraph.N_nodes * rand()), rand_spin(),
+                    trunc(Int64, 1 + sgraph.N_nodes * rand()), sampler(),
                     E_tot, beta, param
                 )
             end
