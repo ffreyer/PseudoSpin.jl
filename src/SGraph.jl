@@ -459,3 +459,42 @@ function rand_XY_spin(N::Int64)
     phis = 2 * pi * rand(Float64, N)
     [SVector{3, Float64}(cos.(phis[i]), sin.(phis[i]), 0.0) for i in 1:N]
 end
+
+
+"""
+    rand_3fold_XY_rot_matrix()
+
+Returns a random 3-fold rotation matrix, excluding identity rotations. So the
+result will either be a rotation by +2pi/3 or -2pi/3 around the z/axis.
+"""
+@inline function rand_3fold_XY_rot_matrix()
+    if rand(Bool)
+        return @SMatrix [
+            -0.5                 0.8660254037844387     0.0;
+            -0.8660254037844387 -0.5                    0.0;
+            0.0                  0.0                    1.0
+        ]
+    else
+        return @SMatrix [
+            -0.5                -0.8660254037844387     0.0;
+            0.8660254037844387  -0.5                    0.0;
+            0.0                  0.0                    1.0
+        ]
+    end
+end
+
+
+"""
+    rand_3fold_XY_rotation!(spins)
+
+Returns a random 3-fold rotation matrix, excluding identity rotations. So the
+result will either be a rotation by +2pi/3 or -2pi/3 around the z/axis.
+"""
+@inline function rand_3fold_XY_rotation(spins::Vector{SVector{3, Float64}})
+    rot = rand_3fold_XY_rot_matrix()
+    out = similar(spins)
+    @inbounds @fastmath for i in eachindex(spins)
+        out[i] = rot * spins[i]
+    end
+    out
+end

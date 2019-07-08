@@ -71,6 +71,9 @@ function simulate!(
         parameters::Parameters,
         thermalizer::AbstractThermalizationMethod,
         ME_sweeps::Int64,
+        do_global_updates::Bool,
+        global_rate::Int64,
+        global_update::Function
     )
 
     # Thermalization
@@ -135,7 +138,8 @@ function simulate!(
     measure!(
         sgraph, spins, sampler,
         beta, parameters, file, sweep, ME_sweeps,
-        is_parallel(thermalizer), batch_size(thermalizer)
+        is_parallel(thermalizer), batch_size(thermalizer),
+        do_global_updates, global_rate, global_update
     )
 
     close(file)
@@ -157,7 +161,10 @@ function simulate!(
         Ts::Vector{Float64},    # <- multiple
         parameters::Parameters,
         thermalizer::AbstractThermalizationMethod,
-        ME_sweeps::Int64
+        ME_sweeps::Int64,
+        do_global_updates::Bool,
+        global_rate::Int64,
+        global_update::Function
     )
 
     if is_parallel(thermalizer)
@@ -180,7 +187,10 @@ function simulate!(
             sgraph, spins, sys_size, sampler,
             path, filename * string(corr_id[]),
             Ts[corr_id[]], parameters,
-            thermalizer, ME_sweeps
+            thermalizer, ME_sweeps,
+            do_global_updates,
+            global_rate,
+            global_update
         )
     else
         for (i, T) in enumerate(Ts)
@@ -188,7 +198,10 @@ function simulate!(
                 sgraph, spins, sys_size, sampler,
                 path, filename * string(i),
                 T, parameters,
-                thermalizer, ME_sweeps, h, g
+                thermalizer, ME_sweeps, h, g,
+                do_global_updates,
+                global_rate,
+                global_update
             )
         end
     end
@@ -329,7 +342,11 @@ function simulate!(;
             skip = skip
         ),
         # Measurement
-        ME_sweeps::Int64 = 5_000_000
+        ME_sweeps::Int64 = 5_000_000,
+        # gloabl updates
+        do_global_updates::Bool = false,
+        global_rate::Int64 = 10,
+        global_update::Function = rand_3fold_XY_rot_matrix
     )
 
     @assert(
@@ -361,7 +378,10 @@ function simulate!(;
         length(Ts) == 1 ? Ts[1] : Ts,
         parameters,
         thermalizer,
-        ME_sweeps
+        ME_sweeps,
+        do_global_updates,
+        global_rate,
+        global_update
     )
 
     nothing

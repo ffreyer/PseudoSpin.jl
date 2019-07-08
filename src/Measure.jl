@@ -101,8 +101,10 @@ function measure!(
         sweep::Function,
         N_sweeps::Int64,
         do_pt::Bool,
-        batch_size::Int64#,
-        # flip::Function
+        batch_size::Int64,
+        do_global_updates::Bool,
+        global_rate::Int64,
+        global_update::Function
     )
 
     invN = 1. / sgraph.N_nodes
@@ -135,6 +137,18 @@ function measure!(
 
     for i in 1:N_sweeps
         E_tot = sweep(sgraph, spins, sampler, E_tot, beta, parameters)
+
+        if do_global_updates
+            if i % global_rate == 0
+                new_spins = global_update(spins)
+                new_E_tot = totalEnergy(sgraph, new_spins, parameters)
+                if (new_E_tot < E_tot) || rand() < exp(-beta * (new_E_tot - E_tot))
+                    E_tot = new_E_tot
+                    spins .= new_spins
+                end
+            end
+        end
+
         @inbounds Es[i] = E_tot * invN
         push!(E_BA, E_tot * invN)
 
