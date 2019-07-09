@@ -462,6 +462,23 @@ end
 
 
 """
+    rand_XYm_spin([, N])
+
+Returns a (an array of N) random spin(s) in a reduced XY plane with phi ∈
+[3, 6.45] ~ [172°, 370°] (with 128 bins roughly 3 extra bins).
+"""
+function rand_red_XY_spin()
+    phi = 3.0 + 3.45rand(Float64)
+    SVector{3, Float64}(cos(phi), sin(phi), 0.0)
+end
+
+function rand_red_XY_spin(N::Int64)
+    phis = 3.0 .+ 3.45 .* rand(Float64, N)
+    [SVector{3, Float64}(cos.(phis[i]), sin.(phis[i]), 0.0) for i in 1:N]
+end
+
+
+"""
     rand_3fold_XY_rot_matrix()
 
 Returns a random 3-fold rotation matrix, excluding identity rotations. So the
@@ -485,7 +502,7 @@ end
 
 
 """
-    rand_3fold_XY_rotation!(spins)
+    rand_3fold_XY_rotation(spins)
 
 Returns a random 3-fold rotation matrix, excluding identity rotations. So the
 result will either be a rotation by +2pi/3 or -2pi/3 around the z/axis.
@@ -497,4 +514,14 @@ result will either be a rotation by +2pi/3 or -2pi/3 around the z/axis.
         out[i] = rot * spins[i]
     end
     out
+end
+
+
+"""
+    yaxis_mirro(spins)
+
+Returns an array of spins mirror at the y-(yz-)axis.
+"""
+@inline function yaxis_mirror(spins::Vector{SVector{3, Float64}})
+    [SVector(-S[1], S[2], S[3]) for S in spins]
 end
