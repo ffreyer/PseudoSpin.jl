@@ -28,6 +28,8 @@ include("SGraph.jl")
 export SGraph, Basisfill, get_positions
 export rand_spin, rand_spin!
 export rand_XY_spin, rand_XY_spin!
+export rand_red_XY_spin
+export rand_3fold_XY_rotation, yaxis_mirror
 
 # Essential Metropolis functions (energy, sweep, ...)
 include("Model.jl")

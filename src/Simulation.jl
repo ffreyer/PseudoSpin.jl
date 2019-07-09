@@ -293,8 +293,8 @@ function simulate!(;
         neighbor_search_depth::Int64 = 3,
         do_paths::Bool = true,
         L::Int64 = 6,
-        spins::Vector{SVector{3, Float64}} = rand_spin(2*L^3),
         sampler::Function = rand_spin,
+        spins::Vector{SVector{3, Float64}} = sampler(2*L^3),
         # Simulation parameter
         T::Float64 = 1.0,
         Ts::Vector{Float64} = [T],
