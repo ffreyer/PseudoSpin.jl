@@ -346,7 +346,7 @@ function simulate!(;
         # gloabl updates
         do_global_updates::Bool = false,
         global_rate::Int64 = 10,
-        global_update::Function = rand_3fold_XY_rot_matrix
+        global_update::Function = rand_3fold_XY_rotation
     )
 
     @assert(
