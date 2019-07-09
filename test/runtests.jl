@@ -45,6 +45,33 @@ println("Attempting simulation with 10k + 10k sweeps. Runtime: (estimate: ~6s)")
 @time include("mainf.jl")
 rm("output/full_test.part")
 
+println("Attempting simulation with global updates, reduced XY-plane spins, 10k + 10k sweeps. Runtime: (estimate: ~6s)")
+spins = rand_red_XY_spin(2*6^3)
+@test all(S -> S[2] < 0.2, spins)
+@time simulate!(
+    path = "output/",
+    filename = "full_test",
+    L = 6,
+    sampler = rand_red_XY_spin,
+    spins = spins,
+    J1 = 2rand()-1,
+    J2 = 2rand()-1,
+    J3 = 2rand()-1,
+    lambda = 2rand()-1,
+    K = 2rand()-1,
+    g = 2rand()-1,
+    zeta = 2rand()-1,
+    h = SVector((2rand(3) .- 1)...),
+    T = rand() + 0.1,
+    TH_sweeps = 10_000,
+    ME_sweeps = 10_000,
+    do_global_updates = true,
+    global_update = yaxis_mirror
+)
+rm("output/full_test.part")
+@test all(S -> S[2] < 0.2, spins)
+
+
 ARGS = ["parameters/test_mpi.param"]
 println("Attempting parallel simulation with 10k + 10k sweeps. Runtime: (estimate: ~17s)")
 @time include("main_cluster.jl")
