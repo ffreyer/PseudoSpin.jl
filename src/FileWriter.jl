@@ -7,7 +7,7 @@
 Writes the file header.
 """
 function write_header!(
-        file::IOStream,
+        file::IOStream;
         N_points::Int64,
         TH_sweeps::Int64,
         TH_Temp::Float64,
@@ -19,10 +19,15 @@ function write_header!(
         T::Float64,
         do_parallel_tempering::Bool,
         batch_size::Int64,
-        adaptive_sample_size::Int64
+        adaptive_sample_size::Int64,
+        sampler::Function,
+        sweep::Function,
+        do_global_updates::Bool,
+        global_rate::Int64,
+        global_update::Function
     )
 
-    write(file, "V06")
+    write(file, "V07")
     write(file, N_points)
     write(file, TH_sweeps)
     write(file, TH_Temp)
@@ -45,6 +50,13 @@ function write_header!(
     write(file, do_parallel_tempering)
     write(file, batch_size)
     write(file, adaptive_sample_size)
+
+    write(file, "&!" * string(sampler) * "&!")
+    write(file, "&!" * string(sweep) * "&!")
+
+    write(file, do_global_updates)
+    write(file, global_rate)
+    write(file, "&!" * string(global_update) * "&!")
 
     nothing
 end

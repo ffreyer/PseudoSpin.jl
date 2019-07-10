@@ -123,13 +123,24 @@ function simulate!(
     end
 
     write_header!(
-        file, 1, length(thermalizer), T_max(thermalizer), ME_sweeps, sys_size,
-        Int64(sgraph.N_nodes), sgraph.K_edges,
-        parameters,
-        max(0.0, 1.0 / beta),
-        is_parallel(thermalizer),
-        batch_size(thermalizer),
-        adaptive_sample_size(thermalizer)
+        file,
+        N_points = 1,
+        TH_sweeps = length(thermalizer),
+        TH_Temp = T_max(thermalizer),
+        ME_sweeps = ME_sweeps,
+        sys_size = sys_size,
+        N_nodes = Int64(sgraph.N_nodes),
+        K_edges = sgraph.K_edges,
+        parameters = parameters,
+        T = max(0.0, 1.0 / beta),
+        do_parallel_tempering = is_parallel(thermalizer),
+        batch_size = batch_size(thermalizer),
+        adaptive_sample_size = adaptive_sample_size(thermalizer),
+        sampler = sampler,
+        sweep = sweep,
+        do_global_updates = do_global_updates,
+        global_rate = global_rate,
+        global_update = global_update
     )
 
     write_Comp!(file, E_comp, "E_th ")
