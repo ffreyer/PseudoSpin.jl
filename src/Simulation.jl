@@ -232,7 +232,8 @@ end
         neighbor_search_depth::Int64 = 2,
         do_paths::Bool = true,
         L::Int64 = 6,
-        spins::Vector{SVector{3, Float64}} = rand_spin(2*L^3),
+        sampler::Function = rand_spin,
+        spins::Vector{SVector{3, Float64}} = sampler(2*L^3),
 
         # Temperatures
         T::Float64 = 1.0,
@@ -291,6 +292,11 @@ end
 
         # Number of measurement sweeps
         ME_sweeps::Int64 = 5_000_000
+
+        # gloabl updates
+        do_global_updates::Bool = false,
+        global_rate::Int64 = 10,
+        global_update::Function = rand_3fold_XY_rotation
     )
 
 Starts a simulation with the given keyword arguments.
