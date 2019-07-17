@@ -24,7 +24,8 @@ function write_header!(
         sweep::Function,
         do_global_updates::Bool,
         global_rate::Int64,
-        global_update::Function
+        global_update::Function,
+        Mhist_cutoff::Float64
     )
 
     write(file, "V07")
@@ -57,6 +58,8 @@ function write_header!(
     write(file, do_global_updates)
     write(file, global_rate)
     write(file, "&!" * string(global_update) * "&!")
+    
+    write(file, Mhist_cutoff)
 
     nothing
 end

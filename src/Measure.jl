@@ -104,7 +104,8 @@ function measure!(
         batch_size::Int64,
         do_global_updates::Bool,
         global_rate::Int64,
-        global_update::Function
+        global_update::Function,
+        Mhist_cutoff::Float64
     )
 
     invN = 1. / sgraph.N_nodes
@@ -155,7 +156,7 @@ function measure!(
 
 
         S = reduce(+, spins) * invN
-        if sum(S.^2) > 0.1 # norm > 0.32
+        if sum(S.^2) > Mhist_cutoff # norm > 0.32
             push!(ssh_binner2, S)
         end
 

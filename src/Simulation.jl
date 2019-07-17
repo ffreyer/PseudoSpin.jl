@@ -73,7 +73,8 @@ function simulate!(
         ME_sweeps::Int64,
         do_global_updates::Bool,
         global_rate::Int64,
-        global_update::Function
+        global_update::Function,
+        Mhist_cutoff::Float64
     )
 
     # Thermalization
@@ -140,7 +141,8 @@ function simulate!(
         sweep = sweep,
         do_global_updates = do_global_updates,
         global_rate = global_rate,
-        global_update = global_update
+        global_update = global_update,
+        Mhist_cutoff = Mhist_cutoff
     )
 
     write_Comp!(file, E_comp, "E_th ")
@@ -150,7 +152,8 @@ function simulate!(
         sgraph, spins, sampler,
         beta, parameters, file, sweep, ME_sweeps,
         is_parallel(thermalizer), batch_size(thermalizer),
-        do_global_updates, global_rate, global_update
+        do_global_updates, global_rate, global_update,
+        Mhist_cutoff
     )
 
     close(file)
@@ -175,7 +178,8 @@ function simulate!(
         ME_sweeps::Int64,
         do_global_updates::Bool,
         global_rate::Int64,
-        global_update::Function
+        global_update::Function,
+        Mhist_cutoff::Float64
     )
 
     if is_parallel(thermalizer)
@@ -199,9 +203,8 @@ function simulate!(
             path, filename * string(corr_id[]),
             Ts[corr_id[]], parameters,
             thermalizer, ME_sweeps,
-            do_global_updates,
-            global_rate,
-            global_update
+            do_global_updates, global_rate, global_update,
+            Mhist_cutoff
         )
     else
         for (i, T) in enumerate(Ts)
@@ -210,9 +213,8 @@ function simulate!(
                 path, filename * string(i),
                 T, parameters,
                 thermalizer, ME_sweeps, h, g,
-                do_global_updates,
-                global_rate,
-                global_update
+                do_global_updates, global_rate, global_update,
+                Mhist_cutoff
             )
         end
     end
@@ -363,7 +365,8 @@ function simulate!(;
         # gloabl updates
         do_global_updates::Bool = false,
         global_rate::Int64 = 10,
-        global_update::Function = rand_3fold_XY_rotation
+        global_update::Function = rand_3fold_XY_rotation,
+        Mhist_cutoff::Float64 = 0.5
     )
 
     @assert(
@@ -398,7 +401,8 @@ function simulate!(;
         ME_sweeps,
         do_global_updates,
         global_rate,
-        global_update
+        global_update,
+        Mhist_cutoff
     )
 
     nothing
