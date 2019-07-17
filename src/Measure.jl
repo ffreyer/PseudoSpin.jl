@@ -132,6 +132,7 @@ function measure!(
     srdM2xy = 0.0;  srdM2z = 0.0
 
     ssh_binner = SSHBinner(10_000)
+    ssh_binner2 = SSHBinner(10_000)
 
     E_tot = totalEnergy(sgraph, spins, parameters)
 
@@ -152,7 +153,12 @@ function measure!(
         @inbounds Es[i] = E_tot * invN
         push!(E_BA, E_tot * invN)
 
+
         S = reduce(+, spins) * invN
+        if sum(S.^2) > 0.1 # norm > 0.32
+            push!(ssh_binner2, S)
+        end
+
         @inbounds push!(Mx_BA, S[1])
         @inbounds push!(My_BA, S[2])
         @inbounds push!(Mz_BA, S[3])
@@ -286,6 +292,7 @@ function measure!(
 
     write_HB!(file, Es_HB, "Energ")
     write_SSHB!(file, ssh_binner, "spins")
+    write_SSHB!(file, ssh_binner2, "Magn ")
     write_SC!(file, spins, "spins")
 
     nothing
