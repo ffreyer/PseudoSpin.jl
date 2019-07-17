@@ -156,8 +156,9 @@ function measure!(
 
 
         S = reduce(+, spins) * invN
-        if sum(S.^2) > Mhist_cutoff # norm > 0.32
-            push!(ssh_binner2, S)
+        _norm = sum(S.^2)
+        if _norm > Mhist_cutoff # norm > 0.32
+            push!(ssh_binner2, S ./ _norm)
         end
 
         @inbounds push!(Mx_BA, S[1])
