@@ -28,7 +28,7 @@ function write_header!(
         Mhist_cutoff::Float64
     )
 
-    write(file, "V07")
+    write(file, "V08")
     write(file, N_points)
     write(file, TH_sweeps)
     write(file, TH_Temp)
@@ -58,7 +58,7 @@ function write_header!(
     write(file, do_global_updates)
     write(file, global_rate)
     write(file, "&!" * string(global_update) * "&!")
-    
+
     write(file, Mhist_cutoff)
 
     nothing
