@@ -53,7 +53,6 @@ spins = rand_red_XY_spin(2*6^3)
     filename = "full_test",
     L = 6,
     sampler = rand_red_XY_spin,
-    spins = spins,
     J1 = 2rand()-1,
     J2 = 2rand()-1,
     J3 = 2rand()-1,
