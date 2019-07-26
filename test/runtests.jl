@@ -52,7 +52,8 @@ spins = rand_red_XY_spin(2*6^3)
     path = "output/",
     filename = "full_test",
     L = 6,
-    sampler = rand_red_XY_spin,
+    # sampler = rand_red_XY_spin,
+    sampler = rand_XY_rot_matrix,
     spins = spins,
     J1 = 2rand()-1,
     J2 = 2rand()-1,
@@ -66,10 +67,11 @@ spins = rand_red_XY_spin(2*6^3)
     TH_sweeps = 10_000,
     ME_sweeps = 10_000,
     do_global_updates = true,
-    global_update = yaxis_mirror
+    # global_update = yaxis_mirror()
+    global_update = flipflop_rot(2pi/128)
 )
 rm("output/full_test.part")
-@test all(S -> S[2] < 0.2, spins)
+# @test all(S -> S[2] < 0.2, spins)
 
 
 ARGS = ["parameters/test_mpi.param"]

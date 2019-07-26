@@ -26,10 +26,12 @@ export RGraph, generate_paths!
 # Lattice graph
 include("SGraph.jl")
 export SGraph, Basisfill, get_positions
+
+include("Updates.jl")
 export rand_spin, rand_spin!
 export rand_XY_spin, rand_XY_spin!
-export rand_red_XY_spin
-export rand_3fold_XY_rotation, yaxis_mirror
+export rand_red_XY_spin, rand_XY_rot_matrix
+export rand_3fold_XY_rotation, yaxis_mirror, flipflop_rot
 
 # Essential Metropolis functions (energy, sweep, ...)
 include("Model.jl")

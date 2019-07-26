@@ -104,7 +104,7 @@ function measure!(
         batch_size::Int64,
         do_global_updates::Bool,
         global_rate::Int64,
-        global_update::Function,
+        global_update::AbstractGlobalUpdate,
         Mhist_cutoff::Float64
     )
 
@@ -142,11 +142,22 @@ function measure!(
 
         if do_global_updates
             if i % global_rate == 0
-                new_spins = global_update(spins)
+                new_spins = apply(global_update, spins)
                 new_E_tot = totalEnergy(sgraph, new_spins, parameters)
                 if (new_E_tot < E_tot) || rand() < exp(-beta * (new_E_tot - E_tot))
+                    accept(global_update)
                     E_tot = new_E_tot
                     spins .= new_spins
+                end
+            end
+        end
+
+        if parameters.dual_rot && (i % 1000 == 0)
+            @inbounds for j in eachindex(spins)
+                n = norm(spins[j])
+                n ≈ 1.0 || begin
+                    @warn "Normalization actually necessary"
+                    spins[j] = spins[j] / n
                 end
             end
         end
@@ -157,7 +168,7 @@ function measure!(
 
         S = reduce(+, spins) * invN
         _norm = sum(S.^2)
-        if _norm > Mhist_cutoff # norm > 0.32
+        if true #_norm > Mhist_cutoff # norm > 0.32
             push!(ssh_binner2, S ./ _norm)
         end
 

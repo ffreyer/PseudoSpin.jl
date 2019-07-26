@@ -13,6 +13,7 @@ struct Parameters
     g::Float64
     h::SVector{3, Float64}
     zeta::Float64
+    dual_rot::Bool
 end
 
 """
@@ -32,9 +33,10 @@ function Parameters(;
         K::Float64 = 0.0,
         g::Float64 = 0.0,
         h::SVector{3, Float64} = SVector(0.0, 0.0, 0.0),
-        zeta::Float64 = 0.0
+        zeta::Float64 = 0.0,
+        dual_rot::Bool = false
     )
-    Parameters(J1s, J2s, J3s, K, g, h, zeta)
+    Parameters(J1s, J2s, J3s, K, g, h, zeta, dual_rot)
 end
 
 
@@ -170,7 +172,9 @@ function sweep_picker(param::Parameters)
     dozeta && push!(param_group, :zeta)
 
     if param_group in param_groups
-        return eval(:($(Symbol(:sweep_, param_group...))))
+        return eval(:($(Symbol(
+            param.dual_rot ? :rot_sweep_ : :sweep_, param_group...
+        ))))
     else
         @warn(
             "No method generated for (" *
@@ -179,7 +183,9 @@ function sweep_picker(param::Parameters)
             " a specialized method by adding the parameters to param_groups!"
         )
         param_group = param_groups[1]
-        return eval(:($(Symbol(:sweep_, param_group...))))
+        return eval(:($(Symbol(
+            param.dual_rot ? :rot_sweep_ : :sweep_, param_group...
+        ))))
     end
 end
 
@@ -202,6 +208,37 @@ for param_group in param_groups
                 E_tot = $(Symbol(:spin_flip_, param_group...))(
                     sgraph, spins,
                     trunc(Int64, 1 + sgraph.N_nodes * rand()), sampler(),
+                    E_tot, beta, param
+                )
+            end
+
+            E_tot
+        end
+    end
+
+    @eval begin
+        # Function names such as sweep_J1J2g
+        function $(Symbol(:rot_sweep_, param_group...))(
+                sgraph::SGraph,
+                spins::Vector{SVector{3, Float64}},
+                sampler::Function,
+                E_tot::Float64,
+                beta::Float64,
+                param::Parameters
+            )
+            for _ in 1:div(sgraph.N_nodes, 2)
+                R, Rinv = sampler()
+
+                i1 = trunc(Int64, 1 + sgraph.N_nodes * rand())
+                i2 = trunc(Int64, 1 + sgraph.N_nodes * rand())
+                while i1 == i2
+                    # @info "It happened. $i1 = $i2"
+                    # ^ It happens qutie often, actually
+                    i2 = trunc(Int64, 1 + sgraph.N_nodes * rand())
+                end
+                E_tot = $(Symbol(:rot_spin_flip_, param_group...))(
+                    sgraph, spins,
+                    i1, i2, R * spins[i1], Rinv * spins[i2],
                     E_tot, beta, param
                 )
             end
@@ -237,6 +274,60 @@ for param_group in param_groups
                 @inbounds spins[i] = new_spin
                 update_edges!(n, xys, zs)
                 return E_tot + dE
+            end
+
+            E_tot
+        end
+    end
+
+
+    @eval begin
+        function $(Symbol(:rot_spin_flip_, param_group...))(
+                sgraph::SGraph,
+                spins::Vector{SVector{3, Float64}},
+                i1::Int64,
+                i2::Int64,
+                new_spin1::SVector{3, Float64},
+                new_spin2::SVector{3, Float64},
+                E_tot::Float64,
+                beta::Float64,
+                param::Parameters
+            )
+
+            @inbounds n1 = sgraph.nodes[i1]
+            init_xys = [e.xy for e in n1.first]
+            init_zs = [e.z for e in n1.first]
+            init_spin = copy(spins[i1])
+            xys, zs = generate_scalar_products(sgraph, spins, i1, new_spin1)
+            dE = $(Symbol(:deltaEnergy_, param_group...))(
+                n1, spins, i1, new_spin1, xys, zs, param
+            )
+            # I think this is necessary for J1 calculations :(
+            update_edges!(n1, xys, zs)
+            spins[i1] = new_spin1
+
+
+            @inbounds n2 = sgraph.nodes[i2]
+            xys, zs = generate_scalar_products(sgraph, spins, i2, new_spin2)
+            dE += $(Symbol(:deltaEnergy_, param_group...))(
+                n2, spins, i2, new_spin2, xys, zs, param
+            )
+
+            if dE < 0.
+                @inbounds spins[i2] = new_spin2
+                update_edges!(n2, xys, zs)
+                return E_tot + dE
+            elseif rand() < exp(-dE * beta)
+                @inbounds spins[i2] = new_spin2
+                update_edges!(n2, xys, zs)
+                return E_tot + dE
+            else
+                for j in eachindex(n1.first)
+                    @inbounds n1.first[j].xy = init_xys[j]
+                    @inbounds n1.first[j].z = init_zs[j]
+                end
+                spins[i1] = init_spin
+                return E_tot
             end
 
             E_tot

@@ -17,6 +17,15 @@ function thermalize!(
             E_tot = sweep(sgraph, spins, sampler, E_tot, beta, parameters)
             beta, E_tot, state = next(thermalizer, state, E_tot)
             push!(E_comp, E_tot)
+
+            if parameters.dual_rot && (current_index(thermalizer, state) % 1000 == 0)
+                @inbounds for j in eachindex(spins)
+                    n = norm(spins[j])
+                    n ≈ 1.0 || @warn "Normalization actually necessary"
+                    spins[j] = spins[j] / n
+                end
+            end
+
             yield()
         end
     else
@@ -25,6 +34,15 @@ function thermalize!(
             E_tot = sweep(sgraph, spins, sampler, E_tot, beta, parameters)
             beta, state = next(thermalizer, state)
             push!(E_comp, E_tot)
+
+            if parameters.dual_rot && (current_index(thermalizer, state) % 1000 == 0)
+                @inbounds for j in eachindex(spins)
+                    n = norm(spins[j])
+                    n ≈ 1.0 || @warn "Normalization actually necessary"
+                    spins[j] = spins[j] / n
+                end
+            end
+
             yield()
         end
     end
@@ -73,7 +91,7 @@ function simulate!(
         ME_sweeps::Int64,
         do_global_updates::Bool,
         global_rate::Int64,
-        global_update::Function,
+        global_update::AbstractGlobalUpdate,
         Mhist_cutoff::Float64
     )
 
@@ -178,7 +196,7 @@ function simulate!(
         ME_sweeps::Int64,
         do_global_updates::Bool,
         global_rate::Int64,
-        global_update::Function,
+        global_update::AbstractGlobalUpdate,
         Mhist_cutoff::Float64
     )
 
@@ -335,7 +353,8 @@ function simulate!(;
             K = K,
             g = g,
             h = h,
-            zeta = zeta
+            zeta = zeta,
+            dual_rot = sampler == rand_XY_rot_matrix
         ),
         # Thermalization - Temperature generator
         TH_sweeps::Int64 = 2_000_000,
@@ -365,7 +384,7 @@ function simulate!(;
         # gloabl updates
         do_global_updates::Bool = false,
         global_rate::Int64 = 10,
-        global_update::Function = rand_3fold_XY_rotation,
+        global_update::AbstractGlobalUpdate = rand_3fold_XY_rotation(),
         Mhist_cutoff::Float64 = 0.5
     )
 
