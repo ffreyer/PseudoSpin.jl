@@ -20,7 +20,7 @@ function write_header!(
         do_parallel_tempering::Bool,
         batch_size::Int64,
         adaptive_sample_size::Int64,
-        sampler::Function,
+        sampler::Union{Function, AbstractLocalUpdate},
         sweep::Function,
         do_global_updates::Bool,
         global_rate::Int64,

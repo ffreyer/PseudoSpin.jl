@@ -7,6 +7,12 @@ abstract type AbstractUpdate end
 
 abstract type AbstractLocalUpdate <: AbstractUpdate end
 
+function apply(g::AbstractLocalUpdate, ::Vector{SVector{3, Float64}})
+    throw(ErrorException("Missing apply($(typeof(g)))"))
+end
+
+function accept(g::AbstractLocalUpdate) end
+
 
 """
     rand_spin([, N])
@@ -91,34 +97,66 @@ end
 # end
 
 
-"""
-    rand_complementary_ XY_rot_matrix()
+struct self_balancing_update <: AbstractLocalUpdate
+    M::SVector{3, Float64}
+    eM::SVector{3, Float64}
+    eM_perp::SVector{3, Float64}
+    N::Int64
+end
 
-Returns a random XY rotation matrix and it's complement.
-"""
-@inline function rand_XY_rot_matrix()
-    phi = 2pi * rand()
-    c = cos(phi)
-    s = sin(phi)
+function self_balancing_update(spins)
+    # constants
+    M = sum(spins)
+    eM = normalize(M)
+    eM_perp = cross(SVector(0., 0., 1.), eM)
+    N = length(spins)
+    self_balancing_update(M, eM, eM_perp, N)
+end
 
-    R = @SMatrix [
-        c  -s  0;
-        s   c  0;
-        0   0  1;
-    ]
 
-    Rinv = @SMatrix [
-        c  s  0;
-       -s  c  0;
-        0  0  1;
-    ]
+function apply(U::self_balancing_update, spins::Vector{SVector{3, Float64}})
+    # SSF
+    new_S = rand_XY_spin()
+    idxs = [trunc(Int64, 1 + U.N * rand())]
 
-    R, Rinv
+    # algorithm
+    new_spins = [new_S]
+    dS = new_S - spins[idxs[1]]
+    x = dot(dS, U.eM_perp)
+    @inbounds @fastmath while true
+        i = trunc(Int64, 1 + U.N * rand())
+        while i in idxs
+            i = trunc(Int64, 1 + U.N * rand())
+        end
+        push!(idxs, i)
+
+        x -= dot(spins[i], U.eM_perp)
+        if abs(x) > 1.0
+            push!(new_spins, - sign(x) * U.eM_perp)
+            x -= sign(x)
+        else
+            phi = acos(x)
+            s = sin(phi)
+            R = @SMatrix [
+                x -s  0.;
+                s  x  0.;
+                0. 0. 1.
+            ]
+            push!(new_spins, -R * U.eM_perp)
+            break
+        end
+    end
+
+    if dot(sum(spins) - sum(spins[idxs]) + sum(new_spins), U.eM) < 0.0
+        new_spins .= -new_spins
+    end
+
+    idxs, new_spins
 end
 
 
 ################################################################################
-### Local updates
+### Global updates
 ################################################################################
 
 

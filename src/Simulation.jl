@@ -1,7 +1,7 @@
 function thermalize!(
         sgraph::SGraph,
         spins::Vector{SVector{3, Float64}},
-        sampler::Function,
+        sampler::Union{Function, AbstractLocalUpdate},
         T::Float64,
         parameters::Parameters,
         thermalizer::AbstractThermalizationMethod,
@@ -10,6 +10,8 @@ function thermalize!(
     )
     init_edges!(sgraph, spins)
     E_tot = totalEnergy(sgraph, spins, parameters)
+
+    M = normalize(sum(spins))
 
     if is_parallel(thermalizer)
         beta, state = initialize(thermalizer, T, sgraph, spins)
@@ -23,6 +25,11 @@ function thermalize!(
                     n = norm(spins[j])
                     n ≈ 1.0 || @warn "Normalization actually necessary"
                     spins[j] = spins[j] / n
+                end
+                m = normalize(sum(spins))
+                if !(m ≈ M)
+                    @warn "magnetization changed! $M -> $m"
+                    M = m
                 end
             end
 
@@ -40,6 +47,11 @@ function thermalize!(
                     n = norm(spins[j])
                     n ≈ 1.0 || @warn "Normalization actually necessary"
                     spins[j] = spins[j] / n
+                end
+                m = normalize(sum(spins))
+                if !(m ≈ M)
+                    @warn "magnetization changed! $M -> $m"
+                    M = m
                 end
             end
 
@@ -82,7 +94,7 @@ function simulate!(
         sgraph::SGraph,
         spins::Vector{SVector{3, Float64}},
         sys_size::Int64,
-        sampler::Function,
+        sampler::Union{Function, AbstractLocalUpdate},
         path::String,
         filename::String,
         T::Float64,
@@ -187,7 +199,7 @@ function simulate!(
         sgraph::SGraph,
         spins::Vector{SVector{3, Float64}},
         sys_size::Int64,
-        sampler::Function,
+        sampler::Union{Function, AbstractLocalUpdate},
         path::String,
         filename::String,
         Ts::Vector{Float64},    # <- multiple
@@ -252,7 +264,7 @@ end
         neighbor_search_depth::Int64 = 2,
         do_paths::Bool = true,
         L::Int64 = 6,
-        sampler::Function = rand_spin,
+        sampler::Union{Function, AbstractLocalUpdate} = rand_spin,
         spins::Vector{SVector{3, Float64}} = sampler(2*L^3),
 
         # Temperatures
@@ -330,7 +342,7 @@ function simulate!(;
         neighbor_search_depth::Int64 = 3,
         do_paths::Bool = true,
         L::Int64 = 6,
-        sampler::Function = rand_spin,
+        sampler::Union{Function, AbstractLocalUpdate} = rand_spin,
         spins::Vector{SVector{3, Float64}} = sampler(2*L^3),
         # Simulation parameter
         T::Float64 = 1.0,
@@ -354,7 +366,7 @@ function simulate!(;
             g = g,
             h = h,
             zeta = zeta,
-            dual_rot = sampler == rand_XY_rot_matrix
+            dual_rot = typeof(sampler) <: AbstractLocalUpdate
         ),
         # Thermalization - Temperature generator
         TH_sweeps::Int64 = 2_000_000,

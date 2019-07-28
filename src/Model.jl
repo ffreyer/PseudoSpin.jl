@@ -221,24 +221,16 @@ for param_group in param_groups
         function $(Symbol(:rot_sweep_, param_group...))(
                 sgraph::SGraph,
                 spins::Vector{SVector{3, Float64}},
-                sampler::Function,
+                sampler::AbstractLocalUpdate,
                 E_tot::Float64,
                 beta::Float64,
                 param::Parameters
             )
             for _ in 1:div(sgraph.N_nodes, 2)
-                R, Rinv = sampler()
-
-                i1 = trunc(Int64, 1 + sgraph.N_nodes * rand())
-                i2 = trunc(Int64, 1 + sgraph.N_nodes * rand())
-                while i1 == i2
-                    # @info "It happened. $i1 = $i2"
-                    # ^ It happens qutie often, actually
-                    i2 = trunc(Int64, 1 + sgraph.N_nodes * rand())
-                end
+                idxs, new_spins = apply(sampler, spins)
                 E_tot = $(Symbol(:rot_spin_flip_, param_group...))(
                     sgraph, spins,
-                    i1, i2, R * spins[i1], Rinv * spins[i2],
+                    idxs, new_spins,
                     E_tot, beta, param
                 )
             end
@@ -285,48 +277,42 @@ for param_group in param_groups
         function $(Symbol(:rot_spin_flip_, param_group...))(
                 sgraph::SGraph,
                 spins::Vector{SVector{3, Float64}},
-                i1::Int64,
-                i2::Int64,
-                new_spin1::SVector{3, Float64},
-                new_spin2::SVector{3, Float64},
+                idxs::Vector{Int64},
+                new_spins::Vector{SVector{3, Float64}},
                 E_tot::Float64,
                 beta::Float64,
                 param::Parameters
             )
 
-            @inbounds n1 = sgraph.nodes[i1]
-            init_xys = [e.xy for e in n1.first]
-            init_zs = [e.z for e in n1.first]
-            init_spin = copy(spins[i1])
-            xys, zs = generate_scalar_products(sgraph, spins, i1, new_spin1)
-            dE = $(Symbol(:deltaEnergy_, param_group...))(
-                n1, spins, i1, new_spin1, xys, zs, param
-            )
-            # I think this is necessary for J1 calculations :(
-            update_edges!(n1, xys, zs)
-            spins[i1] = new_spin1
+            init_xys = [[e.xy for e in n.first] for n in sgraph.nodes[idxs]]
+            init_zs = [[e.z for e in n.first] for n in sgraph.nodes[idxs]]
+            init_spins = Vector{SVector}(undef, length(idxs))
+            dE = 0.0
 
-
-            @inbounds n2 = sgraph.nodes[i2]
-            xys, zs = generate_scalar_products(sgraph, spins, i2, new_spin2)
-            dE += $(Symbol(:deltaEnergy_, param_group...))(
-                n2, spins, i2, new_spin2, xys, zs, param
-            )
+            for i in eachindex(idxs)
+                @inbounds n = sgraph.nodes[idxs[i]]
+                @inbounds init_spins[i] = copy(spins[idxs[i]])
+                xys, zs = generate_scalar_products(
+                    sgraph, spins, idxs[i], new_spins[i]
+                )
+                dE += $(Symbol(:deltaEnergy_, param_group...))(
+                    n, spins, idxs[i], new_spins[i], xys, zs, param
+                )
+                update_edges!(n, xys, zs)
+                @inbounds spins[idxs[i]] = new_spins[i]
+            end
 
             if dE < 0.
-                @inbounds spins[i2] = new_spin2
-                update_edges!(n2, xys, zs)
                 return E_tot + dE
             elseif rand() < exp(-dE * beta)
-                @inbounds spins[i2] = new_spin2
-                update_edges!(n2, xys, zs)
                 return E_tot + dE
             else
-                for j in eachindex(n1.first)
-                    @inbounds n1.first[j].xy = init_xys[j]
-                    @inbounds n1.first[j].z = init_zs[j]
+                for i in eachindex(idxs)
+                    n = sgraph.nodes[idxs[i]]
+                    update_edges!(n, init_xys[i], init_zs[i])
+                    spins[idxs[i]] = init_spins[i]
                 end
-                spins[i1] = init_spin
+
                 return E_tot
             end
 

@@ -94,7 +94,7 @@ saved to file. (Note: This does not append a file header)
 function measure!(
         sgraph::SGraph,
         spins::Vector{SVector{3, Float64}},
-        sampler::Function,
+        sampler::Union{Function, AbstractLocalUpdate},
         beta::Float64,
         parameters::Parameters,
         file::IOStream,
@@ -136,6 +136,8 @@ function measure!(
     ssh_binner2 = SSHBinner(10_000)
 
     E_tot = totalEnergy(sgraph, spins, parameters)
+    M = normalize(sum(spins))
+
 
     for i in 1:N_sweeps
         E_tot = sweep(sgraph, spins, sampler, E_tot, beta, parameters)
@@ -159,6 +161,11 @@ function measure!(
                     @warn "Normalization actually necessary"
                     spins[j] = spins[j] / n
                 end
+            end
+            m = normalize(sum(spins))
+            if !(m ≈ M)
+                @warn "magnetization changed! $M -> $m"
+                M = m
             end
         end
 
