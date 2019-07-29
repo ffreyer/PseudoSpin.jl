@@ -26,11 +26,11 @@ function thermalize!(
                     n ≈ 1.0 || @warn "Normalization actually necessary"
                     spins[j] = spins[j] / n
                 end
-                # m = normalize(sum(spins))
-                # if !(m ≈ M)
-                #     @warn "magnetization changed! $M -> $m"
-                #     M = m
-                # end
+                m = normalize(sum(spins))
+                if !(m ≈ M)
+                    @warn "magnetization changed! $M -> $m"
+                    M = m
+                end
             end
 
             yield()
@@ -48,11 +48,11 @@ function thermalize!(
                     n ≈ 1.0 || @warn "Normalization actually necessary"
                     spins[j] = spins[j] / n
                 end
-                # m = normalize(sum(spins))
-                # if !(m ≈ M)
-                #     @warn "magnetization changed! $M -> $m"
-                #     M = m
-                # end
+                m = normalize(sum(spins))
+                if !(m ≈ M)
+                    @warn "magnetization changed! $M -> $m"
+                    M = m
+                end
             end
 
             yield()

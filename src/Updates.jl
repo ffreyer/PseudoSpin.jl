@@ -97,7 +97,7 @@ end
 # end
 
 
-struct self_balancing_update <: AbstractLocalUpdate
+mutable struct self_balancing_update <: AbstractLocalUpdate
     M::SVector{3, Float64}
     eM::SVector{3, Float64}
     eM_perp::SVector{3, Float64}
@@ -148,9 +148,9 @@ function apply(U::self_balancing_update, spins::Vector{SVector{3, Float64}})
     end
 
     if dot(sum(spins) - sum(spins[idxs]) + sum(new_spins), U.eM) < 0.0
-        for i in eachindex(new_spins)
-            new_spins[i] = new_spins[i] - 2.0 * dot(new_spins[i], U.eM) * U.eM
-        end
+        _new_spins = - copy(spins)
+        _new_spins[idxs] = -new_spins
+        return collect(eachindex(_new_spins)), _new_spins
     end
 
     idxs, new_spins

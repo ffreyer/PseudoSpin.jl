@@ -150,6 +150,11 @@ function measure!(
                     accept(global_update)
                     E_tot = new_E_tot
                     spins .= new_spins
+                    if typeof(sampler) == self_balancing_update
+                        sampler.M = sum(spins)
+                        sampler.eM = normalize(sampler.M)
+                        sampler.eM_perp = cross(SVector(0., 0., 1.), sampler.eM)
+                    end
                 end
             end
         end
@@ -162,11 +167,11 @@ function measure!(
                     spins[j] = spins[j] / n
                 end
             end
-            # m = normalize(sum(spins))
-            # if !(m ≈ M)
-            #     @warn "magnetization changed! $M -> $m"
-            #     M = m
-            # end
+            m = normalize(sum(spins))
+            if !(m ≈ M)
+                @warn "magnetization changed! $M -> $m"
+                M = m
+            end
         end
 
         @inbounds Es[i] = E_tot * invN
