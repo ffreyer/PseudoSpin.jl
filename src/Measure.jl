@@ -162,11 +162,11 @@ function measure!(
                     spins[j] = spins[j] / n
                 end
             end
-            m = normalize(sum(spins))
-            if !(m ≈ M)
-                @warn "magnetization changed! $M -> $m"
-                M = m
-            end
+            # m = normalize(sum(spins))
+            # if !(m ≈ M)
+            #     @warn "magnetization changed! $M -> $m"
+            #     M = m
+            # end
         end
 
         @inbounds Es[i] = E_tot * invN

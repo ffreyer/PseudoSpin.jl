@@ -148,7 +148,9 @@ function apply(U::self_balancing_update, spins::Vector{SVector{3, Float64}})
     end
 
     if dot(sum(spins) - sum(spins[idxs]) + sum(new_spins), U.eM) < 0.0
-        new_spins .= -new_spins
+        for i in eachindex(new_spins)
+            new_spins[i] = new_spins[i] - 2.0 * dot(new_spins[i], U.eM) * U.eM
+        end
     end
 
     idxs, new_spins
