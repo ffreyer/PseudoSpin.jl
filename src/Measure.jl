@@ -94,7 +94,7 @@ saved to file. (Note: This does not append a file header)
 function measure!(
         sgraph::SGraph,
         spins::Vector{SVector{3, Float64}},
-        sampler::Function,
+        sampler::Union{Function, AbstractLocalUpdate},
         beta::Float64,
         parameters::Parameters,
         file::IOStream,
@@ -104,7 +104,7 @@ function measure!(
         batch_size::Int64,
         do_global_updates::Bool,
         global_rate::Int64,
-        global_update::Function,
+        global_update::AbstractGlobalUpdate,
         Mhist_cutoff::Float64
     )
 
@@ -136,18 +136,36 @@ function measure!(
     ssh_binner2 = SSHBinner(10_000)
 
     E_tot = totalEnergy(sgraph, spins, parameters)
+    M = normalize(sum(spins))
+
 
     for i in 1:N_sweeps
         E_tot = sweep(sgraph, spins, sampler, E_tot, beta, parameters)
 
         if do_global_updates
             if i % global_rate == 0
-                new_spins = global_update(spins)
+                new_spins = apply(global_update, spins)
                 new_E_tot = totalEnergy(sgraph, new_spins, parameters)
                 if (new_E_tot < E_tot) || rand() < exp(-beta * (new_E_tot - E_tot))
+                    accept(global_update)
                     E_tot = new_E_tot
                     spins .= new_spins
                 end
+            end
+        end
+
+        if parameters.dual_rot && (i % 1000 == 0)
+            @inbounds for j in eachindex(spins)
+                n = norm(spins[j])
+                n ≈ 1.0 || begin
+                    @warn "Normalization actually necessary"
+                    spins[j] = spins[j] / n
+                end
+            end
+            m = normalize(sum(spins))
+            if !(m ≈ M)
+                @warn "magnetization changed! $M -> $m"
+                M = m
             end
         end
 
@@ -157,7 +175,7 @@ function measure!(
 
         S = reduce(+, spins) * invN
         _norm = sum(S.^2)
-        if _norm > Mhist_cutoff # norm > 0.32
+        if true #_norm > Mhist_cutoff # norm > 0.32
             push!(ssh_binner2, S ./ _norm)
         end
 

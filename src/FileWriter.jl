@@ -20,11 +20,11 @@ function write_header!(
         do_parallel_tempering::Bool,
         batch_size::Int64,
         adaptive_sample_size::Int64,
-        sampler::Function,
+        sampler::Union{Function, AbstractLocalUpdate},
         sweep::Function,
         do_global_updates::Bool,
         global_rate::Int64,
-        global_update::Function,
+        global_update::AbstractGlobalUpdate,
         Mhist_cutoff::Float64
     )
 
@@ -57,7 +57,7 @@ function write_header!(
 
     write(file, do_global_updates)
     write(file, global_rate)
-    write(file, "&!" * string(global_update) * "&!")
+    write(file, "&!" * string(typeof(global_update)) * "&!")
 
     write(file, Mhist_cutoff)
 

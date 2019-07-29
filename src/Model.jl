@@ -13,6 +13,7 @@ struct Parameters
     g::Float64
     h::SVector{3, Float64}
     zeta::Float64
+    dual_rot::Bool
 end
 
 """
@@ -32,9 +33,10 @@ function Parameters(;
         K::Float64 = 0.0,
         g::Float64 = 0.0,
         h::SVector{3, Float64} = SVector(0.0, 0.0, 0.0),
-        zeta::Float64 = 0.0
+        zeta::Float64 = 0.0,
+        dual_rot::Bool = false
     )
-    Parameters(J1s, J2s, J3s, K, g, h, zeta)
+    Parameters(J1s, J2s, J3s, K, g, h, zeta, dual_rot)
 end
 
 
@@ -170,7 +172,9 @@ function sweep_picker(param::Parameters)
     dozeta && push!(param_group, :zeta)
 
     if param_group in param_groups
-        return eval(:($(Symbol(:sweep_, param_group...))))
+        return eval(:($(Symbol(
+            param.dual_rot ? :rot_sweep_ : :sweep_, param_group...
+        ))))
     else
         @warn(
             "No method generated for (" *
@@ -179,7 +183,9 @@ function sweep_picker(param::Parameters)
             " a specialized method by adding the parameters to param_groups!"
         )
         param_group = param_groups[1]
-        return eval(:($(Symbol(:sweep_, param_group...))))
+        return eval(:($(Symbol(
+            param.dual_rot ? :rot_sweep_ : :sweep_, param_group...
+        ))))
     end
 end
 
@@ -202,6 +208,29 @@ for param_group in param_groups
                 E_tot = $(Symbol(:spin_flip_, param_group...))(
                     sgraph, spins,
                     trunc(Int64, 1 + sgraph.N_nodes * rand()), sampler(),
+                    E_tot, beta, param
+                )
+            end
+
+            E_tot
+        end
+    end
+
+    @eval begin
+        # Function names such as sweep_J1J2g
+        function $(Symbol(:rot_sweep_, param_group...))(
+                sgraph::SGraph,
+                spins::Vector{SVector{3, Float64}},
+                sampler::AbstractLocalUpdate,
+                E_tot::Float64,
+                beta::Float64,
+                param::Parameters
+            )
+            for _ in 1:div(sgraph.N_nodes, 2)
+                idxs, new_spins = apply(sampler, spins)
+                E_tot = $(Symbol(:rot_spin_flip_, param_group...))(
+                    sgraph, spins,
+                    idxs, new_spins,
                     E_tot, beta, param
                 )
             end
@@ -237,6 +266,54 @@ for param_group in param_groups
                 @inbounds spins[i] = new_spin
                 update_edges!(n, xys, zs)
                 return E_tot + dE
+            end
+
+            E_tot
+        end
+    end
+
+
+    @eval begin
+        function $(Symbol(:rot_spin_flip_, param_group...))(
+                sgraph::SGraph,
+                spins::Vector{SVector{3, Float64}},
+                idxs::Vector{Int64},
+                new_spins::Vector{SVector{3, Float64}},
+                E_tot::Float64,
+                beta::Float64,
+                param::Parameters
+            )
+
+            init_xys = [[e.xy for e in n.first] for n in sgraph.nodes[idxs]]
+            init_zs = [[e.z for e in n.first] for n in sgraph.nodes[idxs]]
+            init_spins = Vector{SVector}(undef, length(idxs))
+            dE = 0.0
+
+            for i in eachindex(idxs)
+                @inbounds n = sgraph.nodes[idxs[i]]
+                @inbounds init_spins[i] = copy(spins[idxs[i]])
+                xys, zs = generate_scalar_products(
+                    sgraph, spins, idxs[i], new_spins[i]
+                )
+                dE += $(Symbol(:deltaEnergy_, param_group...))(
+                    n, spins, idxs[i], new_spins[i], xys, zs, param
+                )
+                update_edges!(n, xys, zs)
+                @inbounds spins[idxs[i]] = new_spins[i]
+            end
+
+            if dE < 0.
+                return E_tot + dE
+            elseif rand() < exp(-dE * beta)
+                return E_tot + dE
+            else
+                for i in eachindex(idxs)
+                    n = sgraph.nodes[idxs[i]]
+                    update_edges!(n, init_xys[i], init_zs[i])
+                    spins[idxs[i]] = init_spins[i]
+                end
+
+                return E_tot
             end
 
             E_tot

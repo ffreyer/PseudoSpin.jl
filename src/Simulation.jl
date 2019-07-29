@@ -1,7 +1,7 @@
 function thermalize!(
         sgraph::SGraph,
         spins::Vector{SVector{3, Float64}},
-        sampler::Function,
+        sampler::Union{Function, AbstractLocalUpdate},
         T::Float64,
         parameters::Parameters,
         thermalizer::AbstractThermalizationMethod,
@@ -11,12 +11,28 @@ function thermalize!(
     init_edges!(sgraph, spins)
     E_tot = totalEnergy(sgraph, spins, parameters)
 
+    M = normalize(sum(spins))
+
     if is_parallel(thermalizer)
         beta, state = initialize(thermalizer, T, sgraph, spins)
         while !done(thermalizer, state)
             E_tot = sweep(sgraph, spins, sampler, E_tot, beta, parameters)
             beta, E_tot, state = next(thermalizer, state, E_tot)
             push!(E_comp, E_tot)
+
+            if parameters.dual_rot && (current_index(thermalizer, state) % 1000 == 0)
+                @inbounds for j in eachindex(spins)
+                    n = norm(spins[j])
+                    n ≈ 1.0 || @warn "Normalization actually necessary"
+                    spins[j] = spins[j] / n
+                end
+                m = normalize(sum(spins))
+                if !(m ≈ M)
+                    @warn "magnetization changed! $M -> $m"
+                    M = m
+                end
+            end
+
             yield()
         end
     else
@@ -25,6 +41,20 @@ function thermalize!(
             E_tot = sweep(sgraph, spins, sampler, E_tot, beta, parameters)
             beta, state = next(thermalizer, state)
             push!(E_comp, E_tot)
+
+            if parameters.dual_rot && (current_index(thermalizer, state) % 1000 == 0)
+                @inbounds for j in eachindex(spins)
+                    n = norm(spins[j])
+                    n ≈ 1.0 || @warn "Normalization actually necessary"
+                    spins[j] = spins[j] / n
+                end
+                m = normalize(sum(spins))
+                if !(m ≈ M)
+                    @warn "magnetization changed! $M -> $m"
+                    M = m
+                end
+            end
+
             yield()
         end
     end
@@ -64,7 +94,7 @@ function simulate!(
         sgraph::SGraph,
         spins::Vector{SVector{3, Float64}},
         sys_size::Int64,
-        sampler::Function,
+        sampler::Union{Function, AbstractLocalUpdate},
         path::String,
         filename::String,
         T::Float64,
@@ -73,7 +103,7 @@ function simulate!(
         ME_sweeps::Int64,
         do_global_updates::Bool,
         global_rate::Int64,
-        global_update::Function,
+        global_update::AbstractGlobalUpdate,
         Mhist_cutoff::Float64
     )
 
@@ -169,7 +199,7 @@ function simulate!(
         sgraph::SGraph,
         spins::Vector{SVector{3, Float64}},
         sys_size::Int64,
-        sampler::Function,
+        sampler::Union{Function, AbstractLocalUpdate},
         path::String,
         filename::String,
         Ts::Vector{Float64},    # <- multiple
@@ -178,7 +208,7 @@ function simulate!(
         ME_sweeps::Int64,
         do_global_updates::Bool,
         global_rate::Int64,
-        global_update::Function,
+        global_update::AbstractGlobalUpdate,
         Mhist_cutoff::Float64
     )
 
@@ -234,7 +264,7 @@ end
         neighbor_search_depth::Int64 = 2,
         do_paths::Bool = true,
         L::Int64 = 6,
-        sampler::Function = rand_spin,
+        sampler::Union{Function, AbstractLocalUpdate} = rand_spin,
         spins::Vector{SVector{3, Float64}} = sampler(2*L^3),
 
         # Temperatures
@@ -312,7 +342,7 @@ function simulate!(;
         neighbor_search_depth::Int64 = 3,
         do_paths::Bool = true,
         L::Int64 = 6,
-        sampler::Function = rand_spin,
+        sampler::Union{Function, AbstractLocalUpdate} = rand_spin,
         spins::Vector{SVector{3, Float64}} = sampler(2*L^3),
         # Simulation parameter
         T::Float64 = 1.0,
@@ -335,7 +365,8 @@ function simulate!(;
             K = K,
             g = g,
             h = h,
-            zeta = zeta
+            zeta = zeta,
+            dual_rot = typeof(sampler) <: AbstractLocalUpdate
         ),
         # Thermalization - Temperature generator
         TH_sweeps::Int64 = 2_000_000,
@@ -365,7 +396,7 @@ function simulate!(;
         # gloabl updates
         do_global_updates::Bool = false,
         global_rate::Int64 = 10,
-        global_update::Function = rand_3fold_XY_rotation,
+        global_update::AbstractGlobalUpdate = rand_3fold_XY_rotation(),
         Mhist_cutoff::Float64 = 0.5
     )
 

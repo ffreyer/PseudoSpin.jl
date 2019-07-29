@@ -239,6 +239,20 @@ end
                 E_tot = sweep(sim, spins, sampler, E_tot, 1.0/10., param)
             end
             @test E_tot ≈ totalEnergy(sim, spins, param)
+
+            #-----------------------------------------------------
+
+            param = Parameters(J1 = 1.0, g = 1.0, h = SVector(0., 1.0, 0.), dual_rot=true)
+            E_tot = totalEnergy(sim, spins, param)
+            sweep = sweep_picker(param)
+            @test sweep == PseudoSpin.rot_sweep_J1gh
+
+            E_tot = sweep(sim, spins, rand_XY_rot_matrix, E_tot, 1.0/10., param)
+            print("--J1,g,h rot   	"); gc()
+            @time for i in 1:N_sweeps
+                E_tot = sweep(sim, spins, rand_XY_rot_matrix, E_tot, 1.0/10., param)
+            end
+            @test E_tot ≈ totalEnergy(sim, spins, param)
         end
     end
 end
