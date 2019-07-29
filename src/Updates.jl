@@ -115,42 +115,62 @@ end
 
 
 function apply(U::self_balancing_update, spins::Vector{SVector{3, Float64}})
-    # SSF
-    new_S = rand_XY_spin()
-    idxs = [trunc(Int64, 1 + U.N * rand())]
+
 
     # algorithm
-    new_spins = [new_S]
-    dS = new_S - spins[idxs[1]]
-    x = dot(dS, U.eM_perp)
-    @inbounds @fastmath while true
-        i = trunc(Int64, 1 + U.N * rand())
-        while i in idxs
-            i = trunc(Int64, 1 + U.N * rand())
-        end
-        push!(idxs, i)
+    new_spins = eltype(spins)[]
+    idxs = Int64[]
+    counter = 1
 
-        x -= dot(spins[i], U.eM_perp)
-        if abs(x) > 1.0
-            push!(new_spins, - sign(x) * U.eM_perp)
-            x -= sign(x)
-        else
-            phi = acos(x)
-            s = sin(phi)
-            R = @SMatrix [
-                x -s  0.;
-                s  x  0.;
-                0. 0. 1.
-            ]
-            push!(new_spins, -R * U.eM_perp)
+    while true
+        # SSF
+        new_S = rand_XY_spin()
+        idxs = [trunc(Int64, 1 + U.N * rand())]
+
+        new_spins = [new_S]
+        dS = new_S - spins[idxs[1]]
+        x = dot(dS, U.eM_perp)
+        @inbounds @fastmath while true
+            i = trunc(Int64, 1 + U.N * rand())
+            while i in idxs
+                i = trunc(Int64, 1 + U.N * rand())
+            end
+            push!(idxs, i)
+
+            x -= dot(spins[i], U.eM_perp)
+            if abs(x) > 1.0
+                push!(new_spins, - sign(x) * U.eM_perp)
+                x -= sign(x)
+            else
+                phi = acos(x)
+                s = sin(phi)
+                R = @SMatrix [
+                    x -s  0.;
+                    s  x  0.;
+                    0. 0. 1.
+                ]
+                push!(new_spins, -R * U.eM_perp)
+                break
+            end
+        end
+
+        # if dot(sum(spins) - sum(spins[idxs]) + sum(new_spins), U.eM) < 0.0
+        #     _new_spins = - copy(spins)
+        #     _new_spins[idxs] = -new_spins
+        #     return collect(eachindex(_new_spins)), _new_spins
+        # end
+
+        if dot(sum(spins) - sum(spins[idxs]) + sum(new_spins), U.eM) > 0.0
             break
         end
-    end
 
-    if dot(sum(spins) - sum(spins[idxs]) + sum(new_spins), U.eM) < 0.0
-        _new_spins = - copy(spins)
-        _new_spins[idxs] = -new_spins
-        return collect(eachindex(_new_spins)), _new_spins
+        if counter == U.N
+            _new_spins = - copy(spins)
+            _new_spins[idxs] = -new_spins
+            return collect(eachindex(_new_spins)), _new_spins
+        end
+
+        counter += 1
     end
 
     idxs, new_spins
