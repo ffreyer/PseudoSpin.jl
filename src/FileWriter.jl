@@ -203,6 +203,30 @@ end
 
 
 """
+    write_CH!(file, CircularHistogram, ID)
+
+Adds data from a CircularHistogram Binner to the file. The section will
+start with *CH* and the ID.
+"""
+function write_SSHB!(file::IOStream, B::CircularHistogram, ID::String)
+    # tag
+    @assert length(ID) == 5
+    write(file, "CH")
+    write(file, ID)
+
+    # metadata
+    write(file, length(B.bins))
+
+    # data
+    for bin in B.bins
+        write(file, bin)
+    end
+
+    nothing
+end
+
+
+"""
     write_SC!(file, spins, ID)
 
 Adds a spin configuration to the file. The section will start with *SC* and the

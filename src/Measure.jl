@@ -133,7 +133,8 @@ function measure!(
     srdM2xy = 0.0;  srdM2z = 0.0
 
     ssh_binner = SSHBinner(10_000)
-    ssh_binner2 = SSHBinner(10_000)
+    # ssh_binner2 = SSHBinner(10_000)
+    circ_hist = CircularHistogram(1024)
 
     E_tot = totalEnergy(sgraph, spins, parameters)
     M = normalize(sum(spins))
@@ -179,10 +180,11 @@ function measure!(
 
 
         S = reduce(+, spins) * invN
-        _norm = sum(S.^2)
-        if true #_norm > Mhist_cutoff # norm > 0.32
-            push!(ssh_binner2, S ./ _norm)
-        end
+        # _norm = sum(S.^2)
+        push!(circ_hist, normalize(sum(spins)))
+        # if true #_norm > Mhist_cutoff # norm > 0.32
+        #     push!(ssh_binner2, S ./ _norm)
+        # end
 
         @inbounds push!(Mx_BA, S[1])
         @inbounds push!(My_BA, S[2])
@@ -317,7 +319,8 @@ function measure!(
 
     write_HB!(file, Es_HB, "Energ")
     write_SSHB!(file, ssh_binner, "spins")
-    write_SSHB!(file, ssh_binner2, "Magn ")
+    # write_SSHB!(file, ssh_binner2, "Magn ")
+    write_SSHB!(file, circ_hist, "Magn ")
     write_SC!(file, spins, "spins")
 
     nothing

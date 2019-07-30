@@ -309,3 +309,24 @@ function output(c::Compressor)
     end
     c.values
 end
+
+
+################################################################################
+### 2D Circle histogram
+################################################################################
+
+
+struct CircularHistogram
+    bins::Vector{Int64}
+    inv2PI::Float64
+end
+
+CircularHistogram(N::Int64) = CircularHistogram(zeros(N), 1.0 / 2pi)
+
+function push!(B::CircularHistogram, x::SVector{3, Float64})
+    phi = x[2] >= 0.0 ? acos(x[1]) : 2.0pi - acos(x[1])
+    N = length(B.bins)
+    phi_index = clamp(trunc(Int64, (N-1) * B.inv2PI * phi) + 1, 1, N)
+    B.bins[phi_index] += 1
+    nothing
+end
