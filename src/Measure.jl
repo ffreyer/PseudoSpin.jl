@@ -134,7 +134,7 @@ function measure!(
 
     ssh_binner = SSHBinner(10_000)
     # ssh_binner2 = SSHBinner(10_000)
-    circ_hist = CircularHistogram(1024)
+    circ_hist = CircularHistogram(1080)
 
     E_tot = totalEnergy(sgraph, spins, parameters)
     M = normalize(sum(spins))
