@@ -257,10 +257,11 @@ end
             sweep = sweep_picker(param)
             @test sweep == PseudoSpin.rot_sweep_J1gh
 
-            E_tot, spin_sum = sweep(sim, spins, spin_sum, rand_XY_rot_matrix, E_tot, 1.0/10., param)
+            _sampler = self_balancing_update(spins)
+            E_tot, spin_sum = sweep(sim, spins, spin_sum, _sampler, E_tot, 1.0/10., param)
             print("--J1,g,h rot   	"); gc()
             @time for i in 1:N_sweeps
-                E_tot, spin_sum = sweep(sim, spins, spin_sum, rand_XY_rot_matrix, E_tot, 1.0/10., param)
+                E_tot, spin_sum = sweep(sim, spins, spin_sum, _sampler, E_tot, 1.0/10., param)
             end
             @test E_tot ≈ totalEnergy(sim, spins, param)
 
@@ -320,10 +321,11 @@ end
             sweep = sweep_picker(param)
             @test sweep == PseudoSpin.rot_sweep_J1ghkappa
 
-            E_tot, spin_sum = sweep(sim, spins, spin_sum, rand_XY_rot_matrix, E_tot, 1.0/10., param)
+            _sampler = self_balancing_update(spins)
+            E_tot, spin_sum = sweep(sim, spins, spin_sum, _sampler, E_tot, 1.0/10., param)
             print("--J1,g,h,kappa rot   	"); gc()
             @time for i in 1:N_sweeps
-                E_tot, spin_sum = sweep(sim, spins, spin_sum, rand_XY_rot_matrix, E_tot, 1.0/10., param)
+                E_tot, spin_sum = sweep(sim, spins, spin_sum, _sampler, E_tot, 1.0/10., param)
             end
             @test E_tot ≈ totalEnergy(sim, spins, param)
             @test spin_sum ≈ sum(spins)

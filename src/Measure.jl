@@ -181,7 +181,7 @@ function measure!(
         push!(E_BA, E_tot * invN)
 
         # We're only updating spin_sum when the kappa term is used
-        param.kappa == 0.0 && (spin_sum = sum(spins))
+        parameters.kappa == 0.0 && (spin_sum = sum(spins))
         S = spin_sum * invN
         # _norm = sum(S.^2)
         push!(circ_hist, normalize(spin_sum))

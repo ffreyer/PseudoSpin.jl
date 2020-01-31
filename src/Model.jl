@@ -540,8 +540,8 @@ for param_group in param_groups
             end) #--------------------------------------------------------------
 
             $(dokappa && quote #----------------------------------------------------
-                spin_sum += delta_s
-                @fastmath dE += param.kappa * dot(spin_sum, spin_sum)
+                @fastmath dE += param.kappa * dot(2spin_sum + delta_s, delta_s)
+                @fastmath spin_sum += delta_s
             end) #--------------------------------------------------------------
 
             return dE, spin_sum
