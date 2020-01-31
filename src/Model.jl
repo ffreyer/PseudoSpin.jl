@@ -13,6 +13,7 @@ struct Parameters
     g::Float64
     h::SVector{3, Float64}
     zeta::Float64
+    kappa::Float64
     dual_rot::Bool
 end
 
@@ -34,9 +35,10 @@ function Parameters(;
         g::Float64 = 0.0,
         h::SVector{3, Float64} = SVector(0.0, 0.0, 0.0),
         zeta::Float64 = 0.0,
+        kappa::Float64 = 0.0,
         dual_rot::Bool = false
     )
-    Parameters(J1s, J2s, J3s, K, g, h, zeta, dual_rot)
+    Parameters(J1s, J2s, J3s, K, g, h, zeta, kappa, dual_rot)
 end
 
 
@@ -124,6 +126,7 @@ end
 # Every sweep/spin_flip/deltaEnergy function will be named according to the
 # order given here. sweep_picker has to follow this convention.
 const param_groups = [
+    [:J1, :J2, :J3, :K, :g, :h, :zeta, :kappa],
     [:J1, :J2, :J3, :K, :g, :h, :zeta],
     [:J1, :J2, :K, :g, :h, :zeta],
     [:J1, :J2, :K, :g, :h], # Tested
@@ -134,8 +137,10 @@ const param_groups = [
     [:J1, :g, :zeta],
     [:J1, :h, :zeta],
     [:J1, :zeta],
+    [:J1, :g, :h, :kappa],
     [:J1, :g, :h],
     [:J1, :g],      # Tested
+    [:J1, :g, :kappa],
     [:J1],          # Tested
     [:J2],          # Tested
     [:J3],
@@ -143,6 +148,7 @@ const param_groups = [
     [:h],           # Tested
     [:g],
     [:zeta],
+    [:kappa]
     # ...
 ]
 
@@ -160,6 +166,7 @@ function sweep_picker(param::Parameters)
     dog = param.g != 0.0
     doh = param.h != SVector(0.0, 0.0, 0.0)
     dozeta = param.zeta != 0.0
+    dokappa = param.kappa != 0.0
 
     param_group = Symbol[]
     # Normal order!
@@ -169,6 +176,7 @@ function sweep_picker(param::Parameters)
     doK && push!(param_group, :K)
     dog && push!(param_group, :g)
     doh && push!(param_group, :h)
+    dokappa && push!(param_group, :kappa)
     dozeta && push!(param_group, :zeta)
 
     if param_group in param_groups
@@ -199,20 +207,21 @@ for param_group in param_groups
         function $(Symbol(:sweep_, param_group...))(
                 sgraph::SGraph,
                 spins::Vector{SVector{3, Float64}},
+                spin_sum::SVector{3, Float64},
                 sampler::Function,
                 E_tot::Float64,
                 beta::Float64,
                 param::Parameters
             )
             for _ in 1:sgraph.N_nodes
-                E_tot = $(Symbol(:spin_flip_, param_group...))(
-                    sgraph, spins,
+                E_tot, spin_sum = $(Symbol(:spin_flip_, param_group...))(
+                    sgraph, spins, spin_sum,
                     trunc(Int64, 1 + sgraph.N_nodes * rand()), sampler(),
                     E_tot, beta, param
                 )
             end
 
-            E_tot
+            E_tot, spin_sum
         end
     end
 
@@ -221,6 +230,7 @@ for param_group in param_groups
         function $(Symbol(:rot_sweep_, param_group...))(
                 sgraph::SGraph,
                 spins::Vector{SVector{3, Float64}},
+                spin_sum::SVector{3, Float64},
                 sampler::AbstractLocalUpdate,
                 E_tot::Float64,
                 beta::Float64,
@@ -228,14 +238,14 @@ for param_group in param_groups
             )
             for _ in 1:div(sgraph.N_nodes, 2)
                 idxs, new_spins = apply(sampler, spins)
-                E_tot = $(Symbol(:rot_spin_flip_, param_group...))(
-                    sgraph, spins,
+                E_tot, spin_sum = $(Symbol(:rot_spin_flip_, param_group...))(
+                    sgraph, spins, spin_sum,
                     idxs, new_spins,
                     E_tot, beta, param
                 )
             end
 
-            E_tot
+            E_tot, spin_sum
         end
     end
 
@@ -246,6 +256,7 @@ for param_group in param_groups
         function $(Symbol(:spin_flip_, param_group...))(
                 sgraph::SGraph,
                 spins::Vector{SVector{3, Float64}},
+                spin_sum::SVector{3, Float64},
                 i::Int64,
                 new_spin::SVector{3, Float64},
                 E_tot::Float64,
@@ -254,21 +265,21 @@ for param_group in param_groups
             )
             @inbounds n = sgraph.nodes[i]
             xys, zs = generate_scalar_products(sgraph, spins, i, new_spin)
-            dE = $(Symbol(:deltaEnergy_, param_group...))(
-                n, spins, i, new_spin, xys, zs, param
+            dE, new_spin_sum = $(Symbol(:deltaEnergy_, param_group...))(
+                n, spins, spin_sum, i, new_spin, xys, zs, param
             )
 
             if dE < 0.
                 @inbounds spins[i] = new_spin
                 update_edges!(n, xys, zs)
-                return E_tot + dE
+                return E_tot + dE, new_spin_sum
             elseif rand() < exp(-dE * beta)
                 @inbounds spins[i] = new_spin
                 update_edges!(n, xys, zs)
-                return E_tot + dE
+                return E_tot + dE, new_spin_sum
             end
 
-            E_tot
+            E_tot, spin_sum
         end
     end
 
@@ -277,6 +288,7 @@ for param_group in param_groups
         function $(Symbol(:rot_spin_flip_, param_group...))(
                 sgraph::SGraph,
                 spins::Vector{SVector{3, Float64}},
+                spin_sum::SVector{3, Float64},
                 idxs::Vector{Int64},
                 new_spins::Vector{SVector{3, Float64}},
                 E_tot::Float64,
@@ -287,6 +299,7 @@ for param_group in param_groups
             init_xys = [[e.xy for e in n.first] for n in sgraph.nodes[idxs]]
             init_zs = [[e.z for e in n.first] for n in sgraph.nodes[idxs]]
             init_spins = Vector{SVector}(undef, length(idxs))
+            init_spin_sum = deepcopy(spin_sum)
             dE = 0.0
 
             for i in eachindex(idxs)
@@ -295,17 +308,18 @@ for param_group in param_groups
                 xys, zs = generate_scalar_products(
                     sgraph, spins, idxs[i], new_spins[i]
                 )
-                dE += $(Symbol(:deltaEnergy_, param_group...))(
-                    n, spins, idxs[i], new_spins[i], xys, zs, param
+                _dE, spin_sum = $(Symbol(:deltaEnergy_, param_group...))(
+                    n, spins, spin_sum, idxs[i], new_spins[i], xys, zs, param
                 )
+                dE += _dE
                 update_edges!(n, xys, zs)
                 @inbounds spins[idxs[i]] = new_spins[i]
             end
 
             if dE < 0.
-                return E_tot + dE
+                return E_tot + dE, spin_sum
             elseif rand() < exp(-dE * beta)
-                return E_tot + dE
+                return E_tot + dE, spin_sum
             else
                 for i in eachindex(idxs)
                     n = sgraph.nodes[idxs[i]]
@@ -313,10 +327,10 @@ for param_group in param_groups
                     spins[idxs[i]] = init_spins[i]
                 end
 
-                return E_tot
+                return E_tot, init_spin_sum
             end
 
-            E_tot
+            E_tot, spin_sum
         end
     end
 
@@ -330,11 +344,13 @@ for param_group in param_groups
     dog = :g in param_group
     doh = :h in param_group
     dozeta = :zeta in param_group
+    dokappa = :kappa in param_group
 
     @eval begin
         function $(Symbol(:deltaEnergy_, param_group...))(
                 n::SNode,
                 spins::Vector{SVector{3, Float64}},
+                spin_sum::SVector{3, Float64},
                 i::Int64,
                 new_spin::SVector{3, Float64},
                 xys::Vector{Float64},
@@ -405,7 +421,7 @@ for param_group in param_groups
             # ) * xyz3
 
             # ΔS for g, h, J2
-            $((doJ2 || doJ3 || dog || doh || dozeta) && quote #-----------------
+            $((doJ2 || doJ3 || dog || doh || dozeta || dokappa) && quote #-----------------
                 @fastmath @inbounds delta_s = new_spin .- spins[i]
             end) #--------------------------------------------------------------
 
@@ -523,7 +539,12 @@ for param_group in param_groups
                 @fastmath dE -= dot(param.h, delta_s)
             end) #--------------------------------------------------------------
 
-            return dE
+            $(dokappa && quote #----------------------------------------------------
+                spin_sum += delta_s
+                @fastmath dE += param.kappa * dot(spin_sum, spin_sum)
+            end) #--------------------------------------------------------------
+
+            return dE, spin_sum
         end
     end
 end
@@ -638,6 +659,10 @@ function totalEnergy(
     for S in spins
         E -= dot(param.h, S)
     end
+
+    # kappa
+    S = sum(spins)
+    E += param.kappa * dot(S, S)
 
     E
 end

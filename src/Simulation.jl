@@ -10,13 +10,13 @@ function thermalize!(
     )
     init_edges!(sgraph, spins)
     E_tot = totalEnergy(sgraph, spins, parameters)
-
-    M = normalize(sum(spins))
+    spin_sum = sum(spins)
+    M = normalize(spin_sum)
 
     if is_parallel(thermalizer)
         beta, state = initialize(thermalizer, T, sgraph, spins)
         while !done(thermalizer, state)
-            E_tot = sweep(sgraph, spins, sampler, E_tot, beta, parameters)
+            E_tot, spin_sum = sweep(sgraph, spins, spin_sum, sampler, E_tot, beta, parameters)
             beta, E_tot, state = next(thermalizer, state, E_tot)
             push!(E_comp, E_tot)
 
@@ -26,7 +26,8 @@ function thermalize!(
                     n ≈ 1.0 || @warn "Normalization actually necessary"
                     spins[j] = spins[j] / n
                 end
-                m = normalize(sum(spins))
+                spin_sum = sum(spins)
+                m = normalize(spin_sum)
                 if !(m ≈ M)
                     @warn "magnetization changed! $M -> $m"
                     M = m
@@ -38,7 +39,7 @@ function thermalize!(
     else
         beta, state = initialize(thermalizer, T)
         while !done(thermalizer, state)
-            E_tot = sweep(sgraph, spins, sampler, E_tot, beta, parameters)
+            E_tot, spin_sum = sweep(sgraph, spins, spin_sum, sampler, E_tot, beta, parameters)
             beta, state = next(thermalizer, state)
             push!(E_comp, E_tot)
 
@@ -48,7 +49,8 @@ function thermalize!(
                     n ≈ 1.0 || @warn "Normalization actually necessary"
                     spins[j] = spins[j] / n
                 end
-                m = normalize(sum(spins))
+                spin_sum = sum(spins)
+                m = normalize(spin_sum)
                 if !(m ≈ M)
                     @warn "magnetization changed! $M -> $m"
                     M = m
