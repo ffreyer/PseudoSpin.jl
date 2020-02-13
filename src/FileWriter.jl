@@ -28,7 +28,7 @@ function write_header!(
         Mhist_cutoff::Float64
     )
 
-    write(file, "V08")
+    write(file, "V09")
     write(file, N_points)
     write(file, TH_sweeps)
     write(file, TH_Temp)
@@ -46,6 +46,7 @@ function write_header!(
     for _h in parameters.h; write(file, _h) end
     write(file, parameters.g)
     write(file, parameters.zeta)
+    write(file, parameters.kappa)
     write(file, T)
 
     write(file, do_parallel_tempering)

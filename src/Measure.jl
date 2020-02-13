@@ -134,14 +134,14 @@ function measure!(
 
     ssh_binner = SSHBinner(10_000)
     # ssh_binner2 = SSHBinner(10_000)
-    circ_hist = CircularHistogram(1024)
+    circ_hist = CircularHistogram(1080)
 
     E_tot = totalEnergy(sgraph, spins, parameters)
-    M = normalize(sum(spins))
-
+    spin_sum = sum(spins)
+    M = normalize(spin_sum)
 
     for i in 1:N_sweeps
-        E_tot = sweep(sgraph, spins, sampler, E_tot, beta, parameters)
+        E_tot, spin_sum = sweep(sgraph, spins, spin_sum, sampler, E_tot, beta, parameters)
 
         if do_global_updates
             if i % global_rate == 0
@@ -151,6 +151,7 @@ function measure!(
                     accept(global_update)
                     E_tot = new_E_tot
                     spins .= new_spins
+                    spin_sum = sum(new_spins)
                     if typeof(sampler) == self_balancing_update
                         sampler.M = sum(spins)
                         sampler.eM = normalize(sampler.M)
@@ -168,7 +169,8 @@ function measure!(
                     spins[j] = spins[j] / n
                 end
             end
-            m = normalize(sum(spins))
+            spin_sum = sum(spins)
+            m = normalize(spin_sum)
             if !(m ≈ M)
                 @warn "magnetization changed! $M -> $m"
                 M = m
@@ -178,10 +180,11 @@ function measure!(
         @inbounds Es[i] = E_tot * invN
         push!(E_BA, E_tot * invN)
 
-
-        S = reduce(+, spins) * invN
+        # We're only updating spin_sum when the kappa term is used
+        parameters.kappa == 0.0 && (spin_sum = sum(spins))
+        S = spin_sum * invN
         # _norm = sum(S.^2)
-        push!(circ_hist, normalize(sum(spins)))
+        push!(circ_hist, normalize(spin_sum))
         # if true #_norm > Mhist_cutoff # norm > 0.32
         #     push!(ssh_binner2, S ./ _norm)
         # end
