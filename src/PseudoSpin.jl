@@ -30,7 +30,7 @@ export SGraph, Basisfill, get_positions
 include("Updates.jl")
 export rand_spin, rand_spin!
 export rand_XY_spin, rand_XY_spin!
-export rand_red_XY_spin, self_balancing_update
+export rand_red_XY_spin, self_balancing_update, self_balancing_update2
 export rand_3fold_XY_rotation, yaxis_mirror, flipflop_rot
 
 # Essential Metropolis functions (energy, sweep, ...)

@@ -15,24 +15,7 @@ include("Crystal.jl")
 
 include("RGraph.jl")
 
-# Check if rand_spin(N) creates the correct distribution. Since this is random
-# it may rarely fail.
-@test all(
-    abs.(
-        reduce(
-            +,
-            rand_spin(1_000_000)
-        ) / 1_000_000
-    ) .<= SVector{3, Float64}(0.01, 0.01, 0.01)
-)
-@test all(
-    abs.(
-        reduce(
-            +,
-            rand_XY_spin(1_000_000)
-        ) / 1_000_000
-    ) .<= SVector{3, Float64}(0.01, 0.01, 0.0)
-)
+include("Updates.jl")
 
 
 include("Thermalization.jl")

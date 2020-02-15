@@ -97,7 +97,13 @@ end
 # end
 
 
-mutable struct self_balancing_update <: AbstractLocalUpdate
+"""
+    self_balancing_update(spins)
+
+Update routine that keeps the Magnetization direction unchanged between updates.
+Spins in directions perpendicular to M are heavily oversampled.
+"""
+struct self_balancing_update <: AbstractLocalUpdate
     M::SVector{3, Float64}
     eM::SVector{3, Float64}
     eM_perp::SVector{3, Float64}
@@ -115,8 +121,6 @@ end
 
 
 function apply(U::self_balancing_update, spins::Vector{SVector{3, Float64}})
-
-
     # algorithm
     new_spins = eltype(spins)[]
     idxs = Int64[]
@@ -174,6 +178,128 @@ function apply(U::self_balancing_update, spins::Vector{SVector{3, Float64}})
     end
 
     idxs, new_spins
+end
+
+
+"""
+    self_balancing_update2(spins)
+
+Update routine that keeps the Magnetization direction unchanged between updates.
+Much less biased than version 1, but slower. Slightly biased toward ±M
+directions (not discrete)
+
+Roughly 0-20% slower... closer for more spins
+"""
+struct self_balancing_update2 <: PseudoSpin.AbstractLocalUpdate
+    eM::SVector{3, Float64}
+    eM_perp::SVector{3, Float64}
+    # mirror::SArray{Tuple{2,2},Float64,2,4}
+    mirror::SArray{Tuple{3,3},Float64,2,9}
+    K::Int64
+    K_max::Int64
+    max_iter::Int64
+    N::Int64
+end
+
+function self_balancing_update2(spins; K=2, K_max=5)
+    # constants
+    eM = normalize(sum(spins))
+    eM_perp = cross(SVector(0., 0., 1.), eM)
+    N = length(spins)
+    mirror = @SMatrix [
+        eM_perp[1]^2 - eM_perp[2]^2     2eM_perp[1] * eM_perp[2] 0.0;
+        2eM_perp[1] * eM_perp[2]     eM_perp[2]^2 - eM_perp[1]^2 0.0;
+        0.0 0.0 1.0
+    ]
+    self_balancing_update2(eM, eM_perp, mirror, K, K_max, 100, N)
+end
+
+@inline function matmult2_2(m11, m12, m21, m22, v)
+    muladd(m11, v[1], m12 * v[2]),
+    muladd(m21, v[1], m22 * v[2])
+end
+
+function apply(U::self_balancing_update2, spins::Vector{SVector{3, Float64}})
+    totalSsum = sum(spins)
+    # Pick k new random spins
+    @inbounds @fastmath for iter in 1:U.max_iter
+        k = U.K
+        new_spins = rand_XY_spin(k)
+        idxs = [trunc(Int64, 1 + U.N * rand())]
+        for _ in 2:k
+            i = trunc(Int64, 1 + U.N * rand())
+            while i in idxs
+                i = trunc(Int64, 1 + U.N * rand())
+            end
+            push!(idxs, i)
+        end
+
+        oldSsum = sum(spins[idxs])
+        Mperp_prev = dot(oldSsum, U.eM_perp)
+        newSsum = sum(new_spins)
+        M_max = norm(newSsum)
+
+        while true
+            if abs(M_max) > abs(Mperp_prev)
+                x = Mperp_prev / M_max
+                y = dot(newSsum, U.eM_perp) / M_max
+                # optimized acos(x) - acos(y)
+                c = x*y + sqrt((1-x^2)*(1-y^2))
+                s = sign(dot(newSsum, U.eM)) * sign(x - y) * sqrt(1.0 - c^2)
+                new_spins = map(new_spins) do v
+                    SVector(matmult2_2(c, -s, s, c, v)..., 0.0)
+                end
+                newSsum = SVector(matmult2_2(c, -s, s, c, newSsum)..., 0.0)
+                if dot(totalSsum - oldSsum + newSsum, U.eM) < 0.0
+                    # Usually it's enough to mirror new_spins...
+                    # https://en.wikipedia.org/wiki/Transformation_matrix#Reflection
+                    # new_spins = [U.mirror * S for S in new_spins]
+                    # newSsum = U.mirror * newSsum
+                    new_spins = map(new_spins) do v
+                        SVector(matmult2_2(
+                            U.mirror[1, 1],
+                            U.mirror[1, 2],
+                            U.mirror[2, 1],
+                            U.mirror[2, 2],
+                        v)..., 0.0)
+                    end
+                    newSsum = SVector(matmult2_2(
+                        U.mirror[1, 1],
+                        U.mirror[1, 2],
+                        U.mirror[2, 1],
+                        U.mirror[2, 2],
+                    newSsum)..., 0.0)
+                    # Sometimes it isn't (because removing old spins changes M
+                    # too much)
+                    if dot(totalSsum - oldSsum + newSsum, U.eM) < 0.0
+                        break
+                    end
+                end
+
+                # println("$iter $k;")
+                return idxs, new_spins
+            elseif k >= U.K_max
+                break
+            else
+                k += 1
+                S = rand_XY_spin()
+                i = trunc(Int64, 1 + U.N * rand())
+                while i in idxs
+                    i = trunc(Int64, 1 + U.N * rand())
+                end
+                push!(new_spins, S)
+                push!(idxs, i)
+                oldSsum += spins[i]
+                Mperp_prev += dot(spins[i], U.eM_perp)
+                newSsum += S
+                M_max = norm(newSsum)
+            end
+        end
+    end
+
+    error("Max Iterations reached!")
+
+    [1], [spins[1]]
 end
 
 
