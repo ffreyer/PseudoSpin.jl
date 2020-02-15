@@ -110,6 +110,15 @@ struct self_balancing_update <: AbstractLocalUpdate
     N::Int64
 end
 
+"""
+    self_balancing_update(spins)
+
+Initializes a `self_balancing_update` which keeps the diretion of magnetization
+constant.
+
+This update is biased. On top of a slight preference of spin pointing in the
+direction of magnetization, there is also a strong preference of S = ±e_M⟂. 
+"""
 function self_balancing_update(spins)
     # constants
     M = sum(spins)
@@ -133,7 +142,10 @@ function apply(U::self_balancing_update, spins::Vector{SVector{3, Float64}})
 
         new_spins = [new_S]
         dS = new_S - spins[idxs[1]]
+        # component of dS in e_M⟂ direction
         x = dot(dS, U.eM_perp)
+
+        # Somehow always converges
         @inbounds @fastmath while true
             i = trunc(Int64, 1 + U.N * rand())
             while i in idxs
@@ -141,11 +153,19 @@ function apply(U::self_balancing_update, spins::Vector{SVector{3, Float64}})
             end
             push!(idxs, i)
 
+            # Maximum compensation
+            # -sign(x) * 1.0 - sign(x) dot(spins[i], U.eM_perp)
+            # ^- flip to ±e_M⟂ direction
+            # previous component in e_M⟂ -^
+            # sign(x) required to differentiate compensation & enhancement
             x -= dot(spins[i], U.eM_perp)
             if abs(x) > 1.0
+                # Rotating to ±e_M⟂ not enough
+                # do it, try again with another
                 push!(new_spins, - sign(x) * U.eM_perp)
                 x -= sign(x)
             else
+                # can be compensated fully, calculate compensating rotation
                 phi = acos(x)
                 s = sin(phi)
                 R = @SMatrix [
@@ -164,16 +184,20 @@ function apply(U::self_balancing_update, spins::Vector{SVector{3, Float64}})
         #     return collect(eachindex(_new_spins)), _new_spins
         # end
 
+        # Check if sign of e_M changed
         if dot(sum(spins) - sum(spins[idxs]) + sum(new_spins), U.eM) > 0.0
             break
         end
 
+        # I feel like this is in the wrong place, but is never reached anyway
         if counter == U.N
+            @warn "Proposing flip of all spins"
             _new_spins = - copy(spins)
             _new_spins[idxs] = -new_spins
             return collect(eachindex(_new_spins)), _new_spins
         end
 
+        # Retry update if it failed
         counter += 1
     end
 
