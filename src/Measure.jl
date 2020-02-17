@@ -1,13 +1,3 @@
-# TODO
-# Can these be reworked to work in a more general way?
-
-# @inline function flip1(i::Int64, s::SVector{3, Float64}, Nhalf::Int64)
-#     if i <= Nhalf
-#         return s
-#     else
-#         @inbounds return SVector{3, Float64}(-s[1], -s[2], s[3])
-#     end
-# end
 @inline function flip(i::Int64, s::SVector{3, Float64}, Nhalf::Int64)
     if i <= Nhalf
         return s
@@ -15,64 +5,8 @@
         return SVector{3, Float64}(-s[1], -s[2], -s[3])
     end
 end
-# @inline function flip3(i::Int64, s::SVector{3, Float64}, Nhalf::Int64)
-#     return s
-# end
-# @inline function flip4(i::Int64, s::SVector{3, Float64}, Nhalf::Int64)
-#     if i <= Nhalf
-#         return s
-#     else
-#         @inbounds return SVector{3, Float64}(s[1], s[2], -s[3])
-#     end
-# end
 
 
-
-# function measure!(
-#         sgraph::SGraph,
-#         spins::Vector{SVector{3, Float64}},
-#         beta::Float64,
-#         parameters::Parameters,
-#         file::IOStream,
-#         sweep::Function,
-#         N_sweeps::Int64,
-#         do_pt::Bool,
-#         batch_size::Int64
-#     )
-#
-#     # NOTE
-#     # This function only exists to allow multiple dispatch on flip functions.
-#     # Without this, the flip function is not known as a static function and
-#     # values related to it become type unstable (iirc)
-#
-#     # "Staggered" magnetization
-#     # Flips the xy and/or z direction if it maps the current system to a ferro-
-#     # magnetic one. Mostly use for automatic data evaluation
-#     # if sign(parameters.J1[1]) >= 0.0
-#     #     if sign(parameters.K) >= 0.0
-#     #         flip = flip1
-#     #     else
-#     #         flip = flip2
-#     #     end
-#     # elseif sign(parameters.K) >= 0.0
-#     #     flip = flip3
-#     # else
-#     #     flip = flip4
-#     # end
-#
-#     measure!(
-#         sgraph::SGraph,
-#         spins::Vector{SVector{3, Float64}},
-#         beta::Float64,
-#         parameters::Parameters,
-#         file::IOStream,
-#         sweep::Function,
-#         N_sweeps::Int64,
-#         do_pt::Bool,
-#         batch_size::Int64,
-#         flip::Function
-#     )
-# end
 
 """
     measure!(
