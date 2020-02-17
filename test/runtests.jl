@@ -28,15 +28,18 @@ println("Attempting simulation with 10k + 10k sweeps. Runtime: (estimate: ~6s)")
 @time include("mainf.jl")
 rm("output/full_test.part")
 
-println("Attempting simulation with global updates, reduced XY-plane spins, 10k + 10k sweeps. Runtime: (estimate: ~6s)")
+println("Attempting simulation with global updates, self balancing update, 10k + 10k sweeps. Runtime: (estimate: ~6s)")
 spins = rand_red_XY_spin(2*6^3)
+@info normalize(sum(spins))
 @test all(S -> S[2] < 0.2, spins)
+global_update = flipflop_rot(2pi/128)
 @time simulate!(
     path = "output/",
     filename = "full_test",
     L = 6,
-    sampler = rand_red_XY_spin,
+    # sampler = rand_red_XY_spin,
     # sampler = rand_XY_rot_matrix,
+    sampler = self_balancing_update2(spins),
     spins = spins,
     J1 = 2rand()-1,
     J2 = 2rand()-1,
@@ -51,8 +54,11 @@ spins = rand_red_XY_spin(2*6^3)
     ME_sweeps = 10_000,
     do_global_updates = true,
     # global_update = yaxis_mirror()
-    global_update = flipflop_rot(2pi/128)
+    global_update = global_update
 )
+@info normalize(sum(spins))
+new_spins = PseudoSpin.apply(global_update, spins)
+@info normalize(sum(new_spins))
 rm("output/full_test.part")
 # @test all(S -> S[2] < 0.2, spins)
 

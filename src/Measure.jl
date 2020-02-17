@@ -72,7 +72,11 @@ function measure!(
 
     E_tot = totalEnergy(sgraph, spins, parameters)
     spin_sum = sum(spins)
-    M = normalize(spin_sum)
+    if do_global_updates
+        M1 = normalize(spin_sum)
+        new_spins = apply(global_update, spins)
+        M2 = normalize(sum(new_spins))
+    end
 
     for i in 1:N_sweeps
         E_tot, spin_sum = sweep(sgraph, spins, spin_sum, sampler, E_tot, beta, parameters)
@@ -86,10 +90,11 @@ function measure!(
                     E_tot = new_E_tot
                     spins .= new_spins
                     spin_sum = sum(new_spins)
-                    if typeof(sampler) == self_balancing_update
-                        sampler.M = sum(spins)
-                        sampler.eM = normalize(sampler.M)
-                        sampler.eM_perp = cross(SVector(0., 0., 1.), sampler.eM)
+                    if typeof(sampler) in (self_balancing_update, self_balancing_update2)
+                        sampler = typeof(sampler)(spins)
+                        # sampler.M = sum(spins)
+                        # sampler.eM = normalize(sampler.M)
+                        # sampler.eM_perp = cross(SVector(0., 0., 1.), sampler.eM)
                     end
                 end
             end
@@ -105,8 +110,11 @@ function measure!(
             end
             spin_sum = sum(spins)
             m = normalize(spin_sum)
-            if !(m ≈ M)
-                @warn "magnetization changed! $M -> $m"
+            if (!(m ≈ M1)) && (!(m ≈ M2))
+                @warn "magnetization changed!"
+                printstyled("\tM1 = $M1\n")
+                printstyled("\tm  = $m\n", color=:red)
+                printstyled("\tM2 = $M2\n")
                 M = m
             end
         end

@@ -117,7 +117,7 @@ Initializes a `self_balancing_update` which keeps the diretion of magnetization
 constant.
 
 This update is biased. On top of a slight preference of spin pointing in the
-direction of magnetization, there is also a strong preference of S = ±e_M⟂. 
+direction of magnetization, there is also a strong preference of S = ±e_M⟂.
 """
 function self_balancing_update(spins)
     # constants
@@ -214,7 +214,7 @@ directions (not discrete)
 
 Roughly 0-20% slower... closer for more spins
 """
-struct self_balancing_update2 <: PseudoSpin.AbstractLocalUpdate
+struct self_balancing_update2 <: AbstractLocalUpdate
     eM::SVector{3, Float64}
     eM_perp::SVector{3, Float64}
     # mirror::SArray{Tuple{2,2},Float64,2,4}
