@@ -1,0 +1,12 @@
+name = "PseudoSpin"
+uuid = "0795402a-8346-5e82-8d21-a12d9e02c866"
+authors = ["F Freyer <frederic481994@hotmail.de>"]
+version = "0.1.0"
+
+[deps]
+Distributed = "8ba89e20-285c-5b6f-9357-94700520ee1b"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
+SphereSurfaceHistogram = "b3f7556e-2c1d-50f9-83b1-7c1b68b21cf8"
